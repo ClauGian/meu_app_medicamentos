@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart' as path;
 import 'medication_list_screen.dart';
 
 class MedicationRegistrationScreen extends StatefulWidget {
