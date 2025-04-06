@@ -298,8 +298,8 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           'frequency': _frequency,
           'times': _timeControllers.map((c) => c.text).join(','),
           'startDate': _startDateController.text,
-          'isContinuous': _isContinuous ? 1 : 0,
-          'imagePath': _image?.path,
+          'continuous': _isContinuous ? 1 : 0,  // Mude de 'isContinuous' para 'continuous'
+          'photoPath': _image?.path,            // Mude de 'imagePath' para 'photoPath'
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
