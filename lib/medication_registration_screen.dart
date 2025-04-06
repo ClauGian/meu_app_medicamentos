@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
 import 'medication_list_screen.dart';
+import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter
 
 class MedicationRegistrationScreen extends StatefulWidget {
   final Map<String, dynamic>? medication; // Parâmetro opcional pra edição
