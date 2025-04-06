@@ -176,7 +176,7 @@ class _UserRegistrationScreenState extends State<UserRegistrationScreen> {
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(11),
-                  _PhoneInputFormatter(),
+                  PhoneInputFormatter(),
                 ],
               ),
               const SizedBox(height: 20),
@@ -240,7 +240,7 @@ class _DateInputFormatter extends TextInputFormatter {
   }
 }
 
-class _PhoneInputFormatter extends TextInputFormatter {
+class PhoneInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
     String text = newValue.text;

@@ -140,7 +140,7 @@ class _CaregiverRegistrationScreenState extends State<CaregiverRegistrationScree
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(11),
-                  _PhoneInputFormatter(),
+                  PhoneInputFormatter(),
                 ],
               ),
               const SizedBox(height: 20),
