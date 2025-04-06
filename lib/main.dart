@@ -12,7 +12,7 @@ void main() async {
     path.join(await getDatabasesPath(), 'medications.db'),
     onCreate: (db, version) {
       return db.execute(
-        'CREATE TABLE medications(id INTEGER PRIMARY KEY, name TEXT, frequency TEXT, times TEXT, continuous INTEGER, photoPath TEXT)',
+        'CREATE TABLE medications(id INTEGER PRIMARY KEY, name TEXT, stock INTEGER, type TEXT, dosage TEXT, frequency TEXT, times TEXT, startDate TEXT, continuous INTEGER, photoPath TEXT)',
       );
     },
     version: 1,
