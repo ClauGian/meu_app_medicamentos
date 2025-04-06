@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/welcome': (context) => const WelcomeScreen(),
         '/home': (context) => const HomeScreen(),
-        '/register': (context) => const MedicationRegistrationScreen(),
+        '/register': (context) => MedicationRegistrationScreen(database: database),
         '/list': (context) => MedicationListScreen(database: database),
       },
     );
