@@ -30,8 +30,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       initialRoute: '/welcome',
       routes: {
-        '/welcome': (context) => const WelcomeScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/welcome': (context) => WelcomeScreen(database: database), // Corrigido
+        '/home': (context) => HomeScreen(database: database),
         '/register': (context) => MedicationRegistrationScreen(database: database),
         '/list': (context) => MedicationListScreen(database: database),
       },

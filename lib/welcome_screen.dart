@@ -1,74 +1,71 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
 import 'home_screen.dart';
-
+import 'package:path/path.dart' as path;
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+  final Database database; // Adicionado
+
+  const WelcomeScreen({required this.database, super.key}); // Adicionado
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFCCCCCC),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage("assets/images/background_image.jpg"),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Center(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 40),
-              RichText(
-                text: const TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Medi',
-                      style: TextStyle(
-                        color: Color.fromRGBO(0, 105, 148, 1),
-                        fontSize: 56,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    TextSpan(
-                      text: 'Alerta',
-                      style: TextStyle(
-                        color: Color.fromRGBO(85, 170, 85, 1),
-                        fontSize: 56,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
               Image.asset(
-                'assets/imagem_senhora.png',
-                height: MediaQuery.of(context).size.height * 0.40,
+                'assets/images/remedio_logo.png',
+                width: 250,
+                height: 250,
               ),
-              const SizedBox(height: 30),
-              const Text(
-                'Seu remédio na hora certa.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () async {
+                  await deleteDatabase(path.join(await getDatabasesPath(), 'medications.db'));
+                  if (!context.mounted) return;
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => HomeScreen(database: database), // Passa o database
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromRGBO(0, 85, 128, 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                ),
+                child: const Text(
+                  "Apagar Tudo",
+                  style: TextStyle(fontSize: 20, color: Colors.white),
                 ),
               ),
-              const SizedBox(height: 60),
+              const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => HomeScreen(database: database), // Passa o database
+                    ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  backgroundColor: const Color.fromRGBO(0, 85, 128, 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                 ),
                 child: const Text(
-                  "Começar",
-                  style: TextStyle(fontSize: 24, color: Colors.white),
+                  "Entrar",
+                  style: TextStyle(fontSize: 20, color: Colors.white),
                 ),
               ),
             ],
