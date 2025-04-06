@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:path/path.dart' as path;
 import 'package:sqflite/sqflite.dart';
+import 'medication_list_screen.dart';
 
 class MedicationRegistrationScreen extends StatefulWidget {
   final Map<String, dynamic>? medication; // Parâmetro opcional pra edição
