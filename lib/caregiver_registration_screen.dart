@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Adiciona isso
+import 'user_registration_screen.dart'; // Para _PhoneInputFormatter
+
 
 class CaregiverRegistrationScreen extends StatefulWidget {
   const CaregiverRegistrationScreen({super.key});
