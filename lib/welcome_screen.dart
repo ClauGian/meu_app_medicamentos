@@ -14,21 +14,24 @@ class WelcomeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Image.asset(
-              'assets/images/remedio_logo.png',
+              'assets/imagem_senhora.png', // Caminho corrigido
               width: 200,
               height: 200,
+              errorBuilder: (context, error, stackTrace) {
+                return const Text('Imagem não encontrada');
+              },
             ),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () {
-                print('Clicou em Cadastrar-se'); // Apenas um teste por agora
+                print('Clicou em Cadastrar-se');
               },
               child: const Text('Cadastrar-se'),
             ),
             const SizedBox(height: 10),
             ElevatedButton(
               onPressed: () {
-                print('Clicou em Entrar'); // Apenas um teste por agora
+                print('Clicou em Entrar');
               },
               child: const Text('Entrar'),
             ),
