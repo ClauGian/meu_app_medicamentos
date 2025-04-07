@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'app_original.dart' show WelcomeScreen; // Importa WelcomeScreen
-
+import 'screens/welcome_screen.dart'; // Vamos criar esse arquivo
 
 void main() {
   runApp(const MyApp());
@@ -16,7 +15,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: const WelcomeScreen(), // Usa a WelcomeScreen como home
+      home: const WelcomeScreen(),
     );
   }
 }
