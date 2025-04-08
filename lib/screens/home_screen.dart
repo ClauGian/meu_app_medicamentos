@@ -55,32 +55,35 @@ class HomeScreen extends StatelessWidget {
       ),
       drawer: Drawer(
         child: ListView(
-          padding: const EdgeInsets.only(top: 40.0, left: 16.0),
+          padding: const EdgeInsets.only(left: 16.0), // Removi o top: 40.0 pra não somar espaço
           children: [
-            DrawerHeader(
+            Container(
+              height: 80, // Altura fixa, menor que o DrawerHeader padrão
               decoration: const BoxDecoration(
                 color: Color.fromRGBO(0, 105, 148, 1),
               ),
-              child: RichText(
-                text: const TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Medi',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 40, // Aumentado de 36 para 40
-                        fontWeight: FontWeight.bold,
+              child: Center(
+                child: RichText(
+                  text: const TextSpan(
+                    children: [
+                      TextSpan(
+                        text: 'Medi',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                    TextSpan(
-                      text: 'Alerta',
-                      style: TextStyle(
-                        color: Color.fromRGBO(85, 170, 85, 1),
-                        fontSize: 40, // Aumentado de 36 para 40
-                        fontWeight: FontWeight.bold,
+                      TextSpan(
+                        text: 'Alerta',
+                        style: TextStyle(
+                          color: Color.fromRGBO(85, 170, 85, 1),
+                          fontSize: 40,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -89,7 +92,7 @@ class HomeScreen extends StatelessWidget {
                 'Meu Cadastro',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24, // Aumentado de 20 para 24
+                  fontSize: 24,
                 ),
               ),
               onTap: () {
@@ -99,13 +102,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
-            const Divider(color: Colors.grey), // Linha separadora
+            const Divider(color: Colors.grey),
             ListTile(
               title: const Text(
                 'Cadastrar Cuidador',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24, // Aumentado de 20 para 24
+                  fontSize: 24,
                 ),
               ),
               onTap: () {
@@ -115,13 +118,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
-            const Divider(color: Colors.grey), // Linha separadora
+            const Divider(color: Colors.grey),
             ListTile(
               title: const Text(
                 'Cadastrar Medicamentos',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24, // Aumentado de 20 para 24
+                  fontSize: 24,
                 ),
               ),
               onTap: () {
@@ -131,13 +134,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
-            const Divider(color: Colors.grey), // Linha separadora
+            const Divider(color: Colors.grey),
             ListTile(
               title: const Text(
                 'Lista de Medicamentos',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24, // Aumentado de 20 para 24
+                  fontSize: 24,
                 ),
               ),
               onTap: () async {
@@ -148,13 +151,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
-            const Divider(color: Colors.grey), // Linha separadora
+            const Divider(color: Colors.grey),
             ListTile(
               title: const Text(
                 'Alertas',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24, // Aumentado de 20 para 24
+                  fontSize: 24,
                 ),
               ),
               onTap: () {},
@@ -239,9 +242,18 @@ class HomeScreen extends StatelessWidget {
   Future<Database> getDatabase() async {
     return await openDatabase(
       path.join(await getDatabasesPath(), 'medications.db'),
-      onCreate: (db, version) {
-        return db.execute(
+      onCreate: (db, version) async {
+        // Tabela de medicamentos (já existia)
+        await db.execute(
           'CREATE TABLE medications(id INTEGER PRIMARY KEY, name TEXT, stock TEXT, type TEXT, dosage TEXT, frequency INTEGER, times TEXT, startDate TEXT, isContinuous INTEGER, imagePath TEXT)',
+        );
+        // Tabela de usuários
+        await db.execute(
+          'CREATE TABLE users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)',
+        );
+        // Tabela de cuidadores
+        await db.execute(
+          'CREATE TABLE caregivers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)',
         );
       },
       version: 1,
