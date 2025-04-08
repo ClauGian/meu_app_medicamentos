@@ -68,7 +68,7 @@ class HomeScreen extends StatelessWidget {
                       text: 'Medi',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 36,
+                        fontSize: 40, // Aumentado de 36 para 40
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -76,7 +76,7 @@ class HomeScreen extends StatelessWidget {
                       text: 'Alerta',
                       style: TextStyle(
                         color: Color.fromRGBO(85, 170, 85, 1),
-                        fontSize: 36,
+                        fontSize: 40, // Aumentado de 36 para 40
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -89,7 +89,7 @@ class HomeScreen extends StatelessWidget {
                 'Meu Cadastro',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 20,
+                  fontSize: 24, // Aumentado de 20 para 24
                 ),
               ),
               onTap: () {
@@ -99,12 +99,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
+            const Divider(color: Colors.grey), // Linha separadora
             ListTile(
               title: const Text(
                 'Cadastrar Cuidador',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 20,
+                  fontSize: 24, // Aumentado de 20 para 24
                 ),
               ),
               onTap: () {
@@ -114,12 +115,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
+            const Divider(color: Colors.grey), // Linha separadora
             ListTile(
               title: const Text(
                 'Cadastrar Medicamentos',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 20,
+                  fontSize: 24, // Aumentado de 20 para 24
                 ),
               ),
               onTap: () {
@@ -129,12 +131,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
+            const Divider(color: Colors.grey), // Linha separadora
             ListTile(
               title: const Text(
                 'Lista de Medicamentos',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 20,
+                  fontSize: 24, // Aumentado de 20 para 24
                 ),
               ),
               onTap: () async {
@@ -145,12 +148,13 @@ class HomeScreen extends StatelessWidget {
                 );
               },
             ),
+            const Divider(color: Colors.grey), // Linha separadora
             ListTile(
               title: const Text(
                 'Alertas',
                 style: TextStyle(
                   color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 20,
+                  fontSize: 24, // Aumentado de 20 para 24
                 ),
               ),
               onTap: () {},
