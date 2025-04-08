@@ -162,9 +162,10 @@ class HomeScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.start, // <- alterado aqui
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 40),
+              const SizedBox(height: 150), // esse controla o espaço até o "Bem-vindo"
               RichText(
                 textAlign: TextAlign.center,
                 text: const TextSpan(
@@ -199,7 +200,17 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 80),
+              const SizedBox(height: 30),
+              const Text(
+                'O seu assistente para lhe ajudar com sua medicação.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color.fromRGBO(0, 105, 148, 1),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 150),
               ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
