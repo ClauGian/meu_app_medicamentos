@@ -54,115 +54,126 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
       drawer: Drawer(
-        child: ListView(
-          padding: const EdgeInsets.only(left: 16.0), // Removi o top: 40.0 pra não somar espaço
-          children: [
-            Container(
-              height: 80, // Altura fixa, menor que o DrawerHeader padrão
-              decoration: const BoxDecoration(
-                color: Color.fromRGBO(0, 105, 148, 1),
-              ),
-              child: Center(
-                child: RichText(
-                  text: const TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'Medi',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
+        backgroundColor: const Color(0xFFE5E5E5),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 20.0),
+          child: ListView(
+            padding: const EdgeInsets.only(left: 16.0), // Removi o top: 40.0 pra não somar espaço
+            children: [
+              const SizedBox(height: 40), // Espaço no topo do Drawer
+              Container(
+                height: 80, // Altura fixa, menor que o DrawerHeader padrão
+                decoration: const BoxDecoration(
+                  color: Color.fromRGBO(0, 105, 148, 1),
+                ),
+                child: Center(
+                  child: RichText(
+                    text: const TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Medi',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      TextSpan(
-                        text: 'Alerta',
-                        style: TextStyle(
-                          color: Color.fromRGBO(85, 170, 85, 1),
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
+                        TextSpan(
+                          text: 'Alerta',
+                          style: TextStyle(
+                            color: Color.fromRGBO(85, 170, 85, 1),
+                            fontSize: 40,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            ListTile(
-              title: const Text(
-                'Meu Cadastro',
-                style: TextStyle(
-                  color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24,
+              SizedBox(height: 40), // ou o valor de espaço que quiser
+              ListTile(
+                title: const Text(
+                  'Meu Cadastro',
+                  style: TextStyle(
+                    color: Color.fromRGBO(0, 85, 128, 1),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const UserRegistrationScreen()),
+                  );
+                },
               ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const UserRegistrationScreen()),
-                );
-              },
-            ),
-            const Divider(color: Colors.grey),
-            ListTile(
-              title: const Text(
-                'Cadastrar Cuidador',
-                style: TextStyle(
-                  color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24,
+              const Divider(color: Colors.grey),
+              ListTile(
+                title: const Text(
+                  'Cadastrar Cuidador',
+                  style: TextStyle(
+                    color: Color.fromRGBO(0, 85, 128, 1),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const CaregiverRegistrationScreen()),
+                  );
+                },
               ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const CaregiverRegistrationScreen()),
-                );
-              },
-            ),
-            const Divider(color: Colors.grey),
-            ListTile(
-              title: const Text(
-                'Cadastrar Medicamentos',
-                style: TextStyle(
-                  color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24,
+              const Divider(color: Colors.grey),
+              ListTile(
+                title: const Text(
+                  'Cadastrar Medicamentos',
+                  style: TextStyle(
+                    color: Color.fromRGBO(0, 85, 128, 1),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const MedicationRegistrationScreen()),
+                  );
+                },
               ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MedicationRegistrationScreen()),
-                );
-              },
-            ),
-            const Divider(color: Colors.grey),
-            ListTile(
-              title: const Text(
-                'Lista de Medicamentos',
-                style: TextStyle(
-                  color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24,
+              const Divider(color: Colors.grey),
+              ListTile(
+                title: const Text(
+                  'Lista de Medicamentos',
+                  style: TextStyle(
+                    color: Color.fromRGBO(0, 85, 128, 1),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                onTap: () async {
+                  final database = await getDatabase();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => MedicationListScreen(database: database)),
+                  );
+                },
               ),
-              onTap: () async {
-                final database = await getDatabase();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => MedicationListScreen(database: database)),
-                );
-              },
-            ),
-            const Divider(color: Colors.grey),
-            ListTile(
-              title: const Text(
-                'Alertas',
-                style: TextStyle(
-                  color: Color.fromRGBO(0, 85, 128, 1),
-                  fontSize: 24,
+              const Divider(color: Colors.grey),
+              ListTile(
+                title: const Text(
+                  'Alertas',
+                  style: TextStyle(
+                    color: Color.fromRGBO(0, 85, 128, 1),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
+                onTap: () {},
               ),
-              onTap: () {},
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       body: Center(
@@ -172,7 +183,7 @@ class HomeScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.start, // <- alterado aqui
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 150), // esse controla o espaço até o "Bem-vindo"
+              const SizedBox(height: 100), // esse controla o espaço até o "Bem-vindo"
               RichText(
                 textAlign: TextAlign.center,
                 text: const TextSpan(
@@ -190,7 +201,7 @@ class HomeScreen extends StatelessWidget {
                       text: 'Medi',
                       style: TextStyle(
                         color: Color.fromRGBO(0, 105, 148, 1),
-                        fontSize: 36,
+                        fontSize: 42,
                         fontWeight: FontWeight.bold,
                         height: 1.5,
                       ),
@@ -199,7 +210,7 @@ class HomeScreen extends StatelessWidget {
                       text: 'Alerta!',
                       style: TextStyle(
                         color: Color.fromRGBO(85, 170, 85, 1),
-                        fontSize: 36,
+                        fontSize: 42,
                         fontWeight: FontWeight.bold,
                         height: 1.5,
                       ),
@@ -207,7 +218,7 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 50),
               const Text(
                 'O seu assistente para lhe ajudar com sua medicação.',
                 textAlign: TextAlign.center,
@@ -217,7 +228,7 @@ class HomeScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 150),
+              const SizedBox(height: 100),
               ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
