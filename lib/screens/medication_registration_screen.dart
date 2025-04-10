@@ -31,6 +31,47 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   List<TextEditingController> _timeControllers = [TextEditingController()];
   Future<Database>? _databaseFuture;
 
+  void _checkDuplicateMedicationOnNameFieldExit() async {
+    if (!mounted) return;
+
+    final database = await _databaseFuture;
+    if (database == null) return;
+
+    final List<Map<String, dynamic>> existingMedications = await database.query('medications');
+
+    String normalizeName(String name) {
+      return name.replaceAll(' ', '').toLowerCase();
+    }
+
+    final newNameNormalized = normalizeName(_nameController.text);
+
+    final bool alreadyExists = existingMedications.any((med) {
+      final existingName = med['name'] as String? ?? '';
+      return normalizeName(existingName) == newNameNormalized;
+    });
+
+    if (alreadyExists) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Medicamento já cadastrado"),
+          content: const Text("Este nome já foi adicionado. Escolha outro ou edite o existente."),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                // Volta o foco para o campo do nome
+                FocusScope.of(context).requestFocus(_nameFocusNode);
+              },
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -51,9 +92,36 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           ? times.map((time) => TextEditingController(text: time)).toList()
           : [TextEditingController()];
     }
+    
+    _nameFocusNode.addListener(() async {
+      if (!_nameFocusNode.hasFocus) {
+        final database = await _databaseFuture;
+        if (!mounted || database == null) return;
+
+        final existing = await database.query('medications');
+
+        String normalize(String name) => name.replaceAll(' ', '').toLowerCase();
+        final nameInput = normalize(_nameController.text);
+
+        final exists = existing.any((med) => normalize((med['name'] ?? '').toString()) == nameInput);
+
+        if (exists) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Medicamento já cadastrado", style: TextStyle(fontSize: 18))),
+          );
+        }
+      }
+    });
+
     print("Chamando _initDatabase");
     _databaseFuture = _initDatabase();
     print("initState concluído");
+
+    _nameFocusNode.addListener(() {
+      if (!_nameFocusNode.hasFocus) {
+        _checkDuplicateMedicationOnNameFieldExit();
+      }
+    });
   }
 
   @override
@@ -270,6 +338,11 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
     FocusScope.of(context).requestFocus(_nameFocusNode); // Move o foco para o campo Nome
   }
 
+  String normalizeName(String name) {
+    return name.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+  }
+
+
   Future<void> _saveMedication() async {
     print("Iniciando _saveMedication");
     if (!_validateFields()) {
@@ -280,6 +353,51 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
     try {
       print("Esperando o _databaseFuture");
       final database = await _databaseFuture;
+      // Verificação de medicamento duplicado
+      if (!mounted) return;
+
+      if (database == null) {
+        print("Erro: _databaseFuture retornou null (durante verificação de duplicidade)");
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Erro: Banco de dados não inicializado")),
+        );
+        return;
+      }
+
+      final List<Map<String, dynamic>> existingMedications = await database.query('medications');
+
+
+      // Função de normalização (remove espaços e ignora maiúsculas/minúsculas)
+      String normalizeName(String name) {
+        return name.replaceAll(' ', '').toLowerCase();
+      }
+
+      final newNameNormalized = normalizeName(_nameController.text);
+
+      final bool alreadyExists = existingMedications.any((med) {
+        final existingName = med['name'] ?? '';
+        return normalizeName(existingName) == newNameNormalized;
+      });
+
+      if (alreadyExists) {
+        print("Medicamento já cadastrado");
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Aviso"),
+            content: const Text("Medicamento já cadastrado."),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK"),
+              ),
+            ],
+          ),
+        );
+        return; // Interrompe o salvamento
+      }
+
       if (database == null) {
         print("Erro: _databaseFuture retornou null");
         ScaffoldMessenger.of(context).showSnackBar(
