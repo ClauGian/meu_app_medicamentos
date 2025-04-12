@@ -39,8 +39,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   final GlobalKey<State<StatefulWidget>> _usageDropdownKey = GlobalKey<State<StatefulWidget>>();
   final GlobalKey _dropdownKey = GlobalKey();
   final scrollDirection = Axis.vertical;
-  final scrollController = AutoScrollController();
-  final AutoScrollController _scrollController = AutoScrollController();
+  final scrollController = AutoScrollController();  
   final FocusNode _usageFocusNode = FocusNode();
 
 
@@ -101,7 +100,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
       Future.delayed(Duration(milliseconds: 300), () {
         if (mounted) {
           print("Forçando foco após primeiro frame");
-          _scrollController.animateTo(
+          scrollController.animateTo(
             0.0,
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
@@ -630,7 +629,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           body: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
-                controller: _scrollController,
+                controller: scrollController,
                 padding: const EdgeInsets.all(16.0),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
@@ -785,14 +784,14 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           const SizedBox(height: 4),
           GestureDetector(
             onTap: () async {
-              await _scrollController.scrollToIndex(
+              await scrollController.scrollToIndex(
                 2,
                 preferPosition: AutoScrollPosition.begin,
               );
             },
             child: AutoScrollTag(
               key: ValueKey(2),
-              controller: _scrollController,
+              controller: scrollController,
               index: 2,
               highlightColor: Colors.transparent,
               child: Container(
@@ -836,7 +835,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                         await Future.delayed(const Duration(milliseconds: 150));
 
                         // Agora sim rola e foca na dosagem
-                        await _scrollController.scrollToIndex(
+                        await scrollController.scrollToIndex(
                           3,
                           preferPosition: AutoScrollPosition.begin,
                         );
@@ -871,14 +870,14 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           const SizedBox(height: 8),
           GestureDetector(
             onTap: () async {
-              await _scrollController.scrollToIndex(
+              await scrollController.scrollToIndex(
                 4,
                 preferPosition: AutoScrollPosition.begin,
               );
             },
             child: AutoScrollTag(
               key: ValueKey(4),
-              controller: _scrollController,
+              controller: scrollController,
               index: 4,
               highlightColor: Colors.transparent,
               child: Container(
@@ -920,7 +919,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
 
                         await Future.delayed(const Duration(milliseconds: 150));
 
-                        await _scrollController.scrollToIndex(
+                        await scrollController.scrollToIndex(
                           5,
                           preferPosition: AutoScrollPosition.begin,
                         );
