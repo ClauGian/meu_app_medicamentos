@@ -35,13 +35,13 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   final FocusNode _thirdTimeFocusNode = FocusNode();
   final FocusNode _fourthTimeFocusNode = FocusNode();
   final FocusNode _typeFocusNode = FocusNode();
-  final FocusNode _instructionsFocusNode = FocusNode();  
-  final GlobalKey<State<StatefulWidget>> _usageDropdownKey = GlobalKey<State<StatefulWidget>>();
+  final FocusNode _instructionsFocusNode = FocusNode();    
   final GlobalKey _dropdownKey = GlobalKey();
   final scrollDirection = Axis.vertical;
   final scrollController = AutoScrollController();  
   final FocusNode _usageFocusNode = FocusNode();
-
+  final GlobalKey _typeDropdownTagKey = GlobalKey();
+  final GlobalKey _frequencyDropdownTagKey = GlobalKey();
 
   String? _type;
   bool _isContinuous = false;
@@ -630,7 +630,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             builder: (context, constraints) {
               return SingleChildScrollView(
                 controller: scrollController,
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 200.0), // Adicione um padding bottom maior
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: IntrinsicHeight(
@@ -784,18 +784,18 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           const SizedBox(height: 4),
           GestureDetector(
             onTap: () async {
-              await scrollController.scrollToIndex(
-                2,
-                preferPosition: AutoScrollPosition.begin,
-              );
+              FocusScope.of(context).unfocus(); // Tenta fechar o teclado
+              final RenderObject? typeDropdownObject = _typeDropdownTagKey.currentContext?.findRenderObject();
+              typeDropdownObject?.showOnScreen(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
             },
+            
             child: AutoScrollTag(
-              key: ValueKey(2),
+              key: _typeDropdownTagKey, // Use a GlobalKey aqui
               controller: scrollController,
-              index: 2,
+              index: 3,
               highlightColor: Colors.transparent,
               child: Container(
-                height: 70.0,
+                //height: 70.0,
                 decoration: BoxDecoration(
                   color: Colors.grey[200],
                   border: Border.all(color: Colors.grey, width: 2.0),
@@ -836,7 +836,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
 
                         // Agora sim rola e foca na dosagem
                         await scrollController.scrollToIndex(
-                          3,
+                          7,
                           preferPosition: AutoScrollPosition.begin,
                         );
 
@@ -870,18 +870,18 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           const SizedBox(height: 8),
           GestureDetector(
             onTap: () async {
-              await scrollController.scrollToIndex(
-                4,
-                preferPosition: AutoScrollPosition.begin,
-              );
+              FocusScope.of(context).unfocus(); // Tenta fechar o teclado
+              final RenderObject? frequencyDropdownObject = _frequencyDropdownTagKey.currentContext?.findRenderObject();
+              frequencyDropdownObject?.showOnScreen(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
             },
+
             child: AutoScrollTag(
-              key: ValueKey(4),
+              key: _frequencyDropdownTagKey,
               controller: scrollController,
-              index: 4,
+              index: 9,
               highlightColor: Colors.transparent,
               child: Container(
-                height: 70.0,
+                //height: 70.0,
                 decoration: BoxDecoration(
                   color: Colors.grey[200],
                   border: Border.all(color: Colors.grey, width: 2.0),
@@ -920,7 +920,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                         await Future.delayed(const Duration(milliseconds: 150));
 
                         await scrollController.scrollToIndex(
-                          5,
+                         11,
                           preferPosition: AutoScrollPosition.begin,
                         );
 
