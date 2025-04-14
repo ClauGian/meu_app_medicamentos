@@ -8,6 +8,7 @@ import 'package:path/path.dart' as path; // Para path.join
 import 'medication_list_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
 
 class MedicationRegistrationScreen extends StatefulWidget {
@@ -42,6 +43,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   final FocusNode _usageFocusNode = FocusNode();
   final GlobalKey _typeDropdownTagKey = GlobalKey();
   final GlobalKey _frequencyDropdownTagKey = GlobalKey();
+  final GlobalKey _typeKey = GlobalKey(); // ← nova chave para o campo Tipo
+  final GlobalKey _usageKey = GlobalKey();
+
+
 
   String? _type;
   bool _isContinuous = false;
@@ -615,116 +620,104 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           ),
           body: LayoutBuilder(
             builder: (context, constraints) {
-              return SingleChildScrollView(
+              return ListView(
                 controller: scrollController,
-                padding: const EdgeInsets.only(left: 16.0, top: 16.0, right: 16.0, bottom: 200.0), // Adicionando padding na parte inferior
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: IntrinsicHeight(
-                    child: SingleChildScrollView(
-                      controller: scrollController,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 30),
-                          _buildTextField(_nameController, "Nome do Medicamento", centerText: false, focusNode: _nameFocusNode, autofocus: true),
-                          const SizedBox(height: 20),
-                          _buildTextField(_stockController, "Quantidade Total", keyboardType: TextInputType.number, focusNode: _stockFocusNode),
-                          const SizedBox(height: 20),
-                          _buildTypeDropdown(),
-                          const SizedBox(height: 20),
-                          _buildTextField(_dosageController, "Dosagem (por dia)", keyboardType: TextInputType.numberWithOptions(decimal: true), focusNode: _dosageFocusNode),
-                          const SizedBox(height: 20),
-                          _buildFrequencyDropdown(),
-                          const SizedBox(height: 20),
-                          ..._timeControllers.asMap().entries.map((entry) {
-                            int index = entry.key;
-                            TextEditingController controller = entry.value;
-                            FocusNode? focusNode;
-                            if (index == 0) {
-                              focusNode = _firstTimeFocusNode;
-                            } else if (index == 1) {
-                              focusNode = _secondTimeFocusNode;
-                            } else if (index == 2) {
-                              focusNode = _thirdTimeFocusNode;
-                            } else if (index == 3) {
-                              focusNode = _fourthTimeFocusNode;
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 10.0),
-                              child: _buildTimeField(controller, "${index + 1}° Horário", index, focusNode: focusNode),
-                            );
-                          }).toList(),
-                          const SizedBox(height: 20),
-                          AutoScrollTag(
-                            key: GlobalKey(),
-                            controller: scrollController,
-                            index: 11 + _timeControllers.length,
-                            highlightColor: Colors.transparent,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text(
-                                  "Uso Contínuo",
-                                  style: TextStyle(color: Color.fromRGBO(0, 85, 128, 1), fontSize: 20, fontWeight: FontWeight.bold),
-                                ),
-                                Switch(
-                                  value: _isContinuous,
-                                  onChanged: (value) => setState(() => _isContinuous = value),
-                                  activeColor: const Color.fromRGBO(0, 105, 148, 1),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          AutoScrollTag(
-                            key: GlobalKey(),
-                            controller: scrollController,
-                            index: 11 + _timeControllers.length + 1,
-                            highlightColor: Colors.transparent,
-                            child: GestureDetector(
-                              onTap: () async {
-                                await _selectDate(context);
-                                try {
-                                  await scrollController.scrollToIndex(
-                                    11 + _timeControllers.length + 2,
-                                    preferPosition: AutoScrollPosition.begin,
-                                    duration: const Duration(milliseconds: 200),
-                                  );
-                                  print("Rolou para o campo Tirar Foto (índice ${11 + _timeControllers.length + 2})");
-                                } catch (e) {
-                                  print("Erro ao rolar pro campo Tirar Foto: $e");
-                                }
-                              },
-                              child: _buildTextField(
-                                _startDateController,
-                                "Data de Início",
-                                focusNode: _startDateFocusNode,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          AutoScrollTag(
-                            key: GlobalKey(),
-                            controller: scrollController,
-                            index: 11 + _timeControllers.length + 2,
-                            highlightColor: Colors.transparent,
-                            child: _showPhotoOption ? _buildPhotoSection() : Container(),
-                          ),
-                          const SizedBox(height: 20),
-                          AutoScrollTag(
-                            key: GlobalKey(),
-                            controller: scrollController,
-                            index: 11 + _timeControllers.length + 3,
-                            highlightColor: Colors.transparent,
-                            child: _buildSaveButton(),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
+                padding: const EdgeInsets.only(left: 16.0, top: 46.0, right: 16.0, bottom: 200.0),
+                children: [
+                  _buildTextField(_nameController, "Nome do Medicamento", centerText: false, focusNode: _nameFocusNode, autofocus: true),
+                  const SizedBox(height: 20),
+                  _buildTextField(_stockController, "Quantidade Total", keyboardType: TextInputType.number, focusNode: _stockFocusNode),
+                  const SizedBox(height: 20),
+                  _buildTypeDropdown(),
+                  const SizedBox(height: 20),
+                  _buildTextField(_dosageController, "Dosagem (por dia)", keyboardType: TextInputType.numberWithOptions(decimal: true), focusNode: _dosageFocusNode),
+                  const SizedBox(height: 20),
+                  _buildFrequencyDropdown(),
+                  const SizedBox(height: 20),
+                  ..._timeControllers.asMap().entries.map((entry) {
+                    int index = entry.key;
+                    TextEditingController controller = entry.value;
+                    FocusNode? focusNode;
+                    if (index == 0) {
+                      focusNode = _firstTimeFocusNode;
+                    } else if (index == 1) {
+                      focusNode = _secondTimeFocusNode;
+                    } else if (index == 2) {
+                      focusNode = _thirdTimeFocusNode;
+                    } else if (index == 3) {
+                      focusNode = _fourthTimeFocusNode;
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: _buildTimeField(controller, "${index + 1}° Horário", index, focusNode: focusNode),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 20),
+                  AutoScrollTag(
+                    key: GlobalKey(),
+                    controller: scrollController,
+                    index: 11 + _timeControllers.length,
+                    highlightColor: Colors.transparent,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Uso Contínuo",
+                          style: TextStyle(color: Color.fromRGBO(0, 85, 128, 1), fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        Switch(
+                          value: _isContinuous,
+                          onChanged: (value) => setState(() => _isContinuous = value),
+                          activeColor: const Color.fromRGBO(0, 105, 148, 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  AutoScrollTag(
+                    key: GlobalKey(),
+                    controller: scrollController,
+                    index: 11 + _timeControllers.length + 1,
+                    highlightColor: Colors.transparent,
+                    child: GestureDetector(
+                      onTap: () async {
+                        await _selectDate(context);
+                        try {
+                          await scrollController.scrollToIndex(
+                            11 + _timeControllers.length + 2,
+                            preferPosition: AutoScrollPosition.begin,
+                            duration: const Duration(milliseconds: 200),
+                          );
+                          print("Rolou para o campo Tirar Foto (índice ${11 + _timeControllers.length + 2})");
+                        } catch (e) {
+                          print("Erro ao rolar pro campo Tirar Foto: $e");
+                        }
+                      },
+                      child: _buildTextField(
+                        _startDateController,
+                        "Data de Início",
+                        focusNode: _startDateFocusNode,
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                  AutoScrollTag(
+                    key: GlobalKey(),
+                    controller: scrollController,
+                    index: 11 + _timeControllers.length + 2,
+                    highlightColor: Colors.transparent,
+                    child: _showPhotoOption ? _buildPhotoSection() : Container(),
+                  ),
+                  const SizedBox(height: 20),
+                  AutoScrollTag(
+                    key: GlobalKey(),
+                    controller: scrollController,
+                    index: 11 + _timeControllers.length + 3,
+                    highlightColor: Colors.transparent,
+                    child: _buildSaveButton(),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               );
             },
           ),
@@ -821,6 +814,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             index: 3,
             highlightColor: Colors.transparent,
             child: Container(
+              key: _typeKey, // ← importante!
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 border: Border.all(color: Colors.grey, width: 2.0),
@@ -829,9 +823,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
                 child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
+                  child: DropdownButton2<String>(
                     key: _dropdownKey,
                     value: medicationTypes.contains(_type) ? _type : null,
+                    isExpanded: true,
                     hint: const Text(
                       "Selecione o tipo",
                       style: TextStyle(
@@ -840,31 +835,44 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                         fontWeight: FontWeight.normal,
                       ),
                     ),
-                    isExpanded: true,
-                    alignment: Alignment.centerLeft,
-                    dropdownColor: Colors.grey[200],
                     items: medicationTypes.map((String value) {
                       return DropdownMenuItem<String>(
                         value: value,
                         child: Text(
                           value,
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.normal),
+                          style: const TextStyle(fontSize: 20),
                         ),
                       );
                     }).toList(),
-                    onTap: () async {
-                      print("Clicou no dropdown de Tipo do Medicamento");
-                      FocusScope.of(context).unfocus();
-                      await Future.delayed(const Duration(milliseconds: 100));
-                      try {
-                        await scrollController.scrollToIndex(
-                          3,
-                          preferPosition: AutoScrollPosition.middle,
-                          duration: const Duration(milliseconds: 200),
-                        );
-                        print("Rolou para o índice 3 (Tipo do Medicamento)");
-                      } catch (e) {
-                        print("Erro ao rolar para o Tipo do Medicamento: $e");
+                    onMenuStateChange: (isOpen) async {
+                      if (isOpen) {
+                        print("Menu do dropdown de Tipo está abrindo...");
+
+                        // Aguarda o layout ser renderizado
+                        await Future.delayed(const Duration(milliseconds: 50));
+
+                        try {
+                          final box = _typeKey.currentContext!.findRenderObject() as RenderBox;
+                          final position = box.localToGlobal(Offset.zero);
+                          final screenHeight = MediaQuery.of(context).size.height;
+
+                          final bottomMargin = 330.0; // espaço para mostrar o dropdown confortavelmente
+
+                          final distanceToBottom = screenHeight - position.dy;
+
+                          if (distanceToBottom < bottomMargin) {
+                            final scrollOffset = bottomMargin - distanceToBottom;
+                            final newOffset = scrollController.offset + scrollOffset;
+                            await scrollController.animateTo(
+                              newOffset,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                            print("Rolagem ajustada em $scrollOffset pixels");
+                          }
+                        } catch (e) {
+                          print("Erro ao ajustar rolagem dinâmica: $e");
+                        }
                       }
                     },
                     onChanged: (String? newValue) async {
@@ -872,26 +880,22 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                         _type = newValue;
                       });
                       print("Selecionou tipo: $newValue");
+
                       await Future.delayed(const Duration(milliseconds: 150));
-                      try {
-                        await scrollController.scrollToIndex(
-                          5,
-                          preferPosition: AutoScrollPosition.begin,
-                          duration: const Duration(milliseconds: 200),
-                        );
-                        print("Rolou para o campo de dosagem (índice 5)");
-                      } catch (e) {
-                        print("Erro ao rolar para o campo de dosagem: $e");
-                      }
+                      await scrollController.scrollToIndex(
+                        5,
+                        preferPosition: AutoScrollPosition.begin,
+                        duration: const Duration(milliseconds: 200),
+                      );
+                      print("Rolou para o campo de dosagem (índice 5)");
+
                       FocusScope.of(context).requestFocus(_dosageFocusNode);
-                      print("Foco solicitado para _dosageFocusNode");
                     },
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 20),
         ],
       ),
     );
@@ -918,15 +922,18 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             index: 9,
             highlightColor: Colors.transparent,
             child: Container(
+              key: _usageKey,
+              width: double.infinity,
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 border: Border.all(color: Colors.grey, width: 2.0),
                 borderRadius: BorderRadius.circular(4.0),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+                // Ajustando o padding para evitar a redução da altura do campo
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0), 
                 child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
+                  child: DropdownButton2<int>(
                     value: _frequency,
                     hint: const Text(
                       "Selecione",
@@ -937,8 +944,24 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                       ),
                     ),
                     isExpanded: true,
-                    icon: const Icon(Icons.arrow_drop_down, size: 30, color: Color.fromRGBO(0, 85, 128, 1)),
-                    dropdownColor: Colors.grey[200],
+                    customButton: Padding(
+                      padding: const EdgeInsets.only(right: 12.0),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: const Icon(
+                          Icons.arrow_drop_down,
+                          size: 30,
+                          color: Color.fromRGBO(0, 85, 128, 1),
+                        ),
+                      ),
+                    ),
+                    dropdownStyleData: DropdownStyleData(
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                      ),
+                      maxHeight: 250, // Permite mais itens visíveis
+                      offset: const Offset(0, -6), // Desloca o dropdown um pouco mais para cima
+                    ),
                     items: List.generate(5, (index) => index + 1).map((int value) {
                       return DropdownMenuItem<int>(
                         value: value,
@@ -948,19 +971,33 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                         ),
                       );
                     }).toList(),
-                    onTap: () async {
-                      print("Clicou no dropdown de Modo de Usar");
-                      FocusScope.of(context).unfocus();
-                      await Future.delayed(const Duration(milliseconds: 100));
-                      try {
-                        await scrollController.scrollToIndex(
-                          9,
-                          preferPosition: AutoScrollPosition.middle,
-                          duration: const Duration(milliseconds: 200),
-                        );
-                        print("Rolou para o índice 9 (Modo de Usar)");
-                      } catch (e) {
-                        print("Erro ao rolar para o Modo de Usar: $e");
+                    onMenuStateChange: (isOpen) async {
+                      if (isOpen) {
+                        print("Menu do dropdown de Frequência está abrindo...");
+                        await Future.delayed(const Duration(milliseconds: 50));
+
+                        try {
+                          final box = _usageKey.currentContext!.findRenderObject() as RenderBox;
+                          final position = box.localToGlobal(Offset.zero);
+                          final screenHeight = MediaQuery.of(context).size.height;
+
+                          final bottomMargin = 330.0; 
+                          final distanceToBottom = screenHeight - position.dy;
+
+                          if (distanceToBottom < bottomMargin) {
+                            final scrollOffset = bottomMargin - distanceToBottom;
+                            final newOffset = scrollController.offset + scrollOffset;
+
+                            await scrollController.animateTo(
+                              newOffset,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                            print("Rolagem ajustada para mostrar dropdown de Frequência");
+                          }
+                        } catch (e) {
+                          print("Erro ao ajustar rolagem para dropdown de Frequência: $e");
+                        }
                       }
                     },
                     onChanged: (int? newValue) async {
@@ -968,7 +1005,9 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                         _frequency = newValue;
                         _updateTimeFields(_frequency);
                       });
+
                       print("Selecionou frequência: $newValue");
+
                       await Future.delayed(const Duration(milliseconds: 150));
                       try {
                         await scrollController.scrollToIndex(
@@ -980,6 +1019,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                       } catch (e) {
                         print("Erro ao rolar para o campo de horário: $e");
                       }
+
                       FocusScope.of(context).requestFocus(_firstTimeFocusNode);
                       print("Foco solicitado para o primeiro horário");
                     },
@@ -988,11 +1028,11 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
               ),
             ),
           ),
-          const SizedBox(height: 20),
         ],
       ),
     );
   }
+
 
   Widget _buildTimeField(TextEditingController controller, String label, int index, {FocusNode? focusNode}) {
     final List<FocusNode> timeFocusNodes = [
