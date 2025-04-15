@@ -137,7 +137,6 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             print("Erro ao resetar rolagem: $e");
           }
           _nameFocusNode.requestFocus();
-          SystemChannels.textInput.invokeMethod('TextInput.show');
           print("Teclado solicitado para Nome do Medicamento");
         }
       });
@@ -775,15 +774,34 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             }
           },
           decoration: InputDecoration(
-            labelText: label == "Nome do Medicamento" ? "Insira o nome" :
-                      label == "Quantidade Total" ? "Insira a quantidade total" :
-                      label == "Dosagem (por dia)" ? "Insira a quantidade diária" :
-                      "Insira a data",
+            labelText: label == "Nome do Medicamento"
+                ? "Insira o nome"
+                : label == "Quantidade Total"
+                    ? "Insira a quantidade total"
+                    : label == "Dosagem (por dia)"
+                        ? "Insira a quantidade diária"
+                        : label == "Data de Início"
+                            ? "Selecione a data"
+                            : "Insira a data",
             labelStyle: const TextStyle(fontSize: 20, color: Color.fromRGBO(0, 85, 128, 1)),
             floatingLabelBehavior: FloatingLabelBehavior.never,
             filled: true,
             fillColor: Colors.grey[200],
-            border: const OutlineInputBorder(borderSide: BorderSide(color: Colors.grey, width: 2.0)),
+            border: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: label == "Data de Início" ? Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
+                width: label == "Data de Início" ? 5.0 : 2.0,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderSide: BorderSide(
+                color: label == "Data de Início" ? Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
+                width: label == "Data de Início" ? 5.0 : 2.0,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderSide: BorderSide(color: Color.fromRGBO(85, 170, 85, 1), width: 5.0),
+            ),
           ),
           style: const TextStyle(fontSize: 24),
         ),
@@ -817,7 +835,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
               key: _typeKey, // ← importante!
               decoration: BoxDecoration(
                 color: Colors.grey[200],
-                border: Border.all(color: Colors.grey, width: 2.0),
+                border: Border.all(
+                  color: _typeFocusNode.hasFocus ? const Color.fromRGBO(85, 170, 85, 1) : Colors.transparent,
+                  width: 5.0,
+                ),
                 borderRadius: BorderRadius.circular(4.0),
               ),
               child: Padding(
@@ -926,7 +947,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
               constraints: const BoxConstraints(minHeight: 75),
               decoration: BoxDecoration(
                 color: Colors.grey[200],
-                border: Border.all(color: Colors.grey, width: 2.0),
+                border: Border.all(
+                  color: _usageFocusNode.hasFocus ? const Color.fromRGBO(85, 170, 85, 1) : Colors.transparent,
+                  width: 5.0,
+                ),
                 borderRadius: BorderRadius.circular(4.0),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 1.0),
@@ -994,18 +1018,20 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                     }
                   },
                   onChanged: (int? newValue) async {
-                    setState(() {
-                      _frequency = newValue;
-                      _updateTimeFields(_frequency);
-                    });
-                    await Future.delayed(const Duration(milliseconds: 150));
-                    await scrollController.scrollToIndex(
-                      11,
-                      preferPosition: AutoScrollPosition.begin,
-                      duration: const Duration(milliseconds: 200),
-                    );
-                    FocusScope.of(context).requestFocus(_firstTimeFocusNode);
-                  },
+                    if (newValue != null) {
+                      setState(() {
+                        _frequency = newValue;
+                        _updateTimeFields(_frequency);
+                      });
+                      await Future.delayed(const Duration(milliseconds: 150));
+                      await scrollController.scrollToIndex(
+                        11,
+                        preferPosition: AutoScrollPosition.begin,
+                        duration: const Duration(milliseconds: 200),
+                      );
+                      FocusScope.of(context).requestFocus(_firstTimeFocusNode);
+                    }
+                  }
                 ),
               ),
             ),
@@ -1042,12 +1068,17 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             focusNode: timeFocusNodes[index],
             readOnly: true,
             textAlign: TextAlign.left,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: "Selecione",
-              hintStyle: TextStyle(fontSize: 20, color: Color.fromRGBO(0, 85, 128, 1)),
+              hintStyle: const TextStyle(fontSize: 20, color: Color.fromRGBO(0, 85, 128, 1)),
               filled: true,
-              fillColor: Colors.grey,
-              border: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey, width: 2.0)),
+              fillColor: Colors.grey[200],
+              enabledBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.transparent, width: 5.0),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Color.fromRGBO(85, 170, 85, 1), width: 5.0),
+              ),
             ),
             style: const TextStyle(fontSize: 24),
             onTap: () async {
