@@ -45,6 +45,14 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   final GlobalKey _frequencyDropdownTagKey = GlobalKey();
   final GlobalKey _typeKey = GlobalKey(); // ← nova chave para o campo Tipo
   final GlobalKey _usageKey = GlobalKey();
+  final _dosageKey = GlobalKey();
+  final _instructionsKey = GlobalKey();
+  final _firstTimeKey = GlobalKey();
+  final _secondTimeKey = GlobalKey();
+  final _thirdTimeKey = GlobalKey();
+  final _fourthTimeKey = GlobalKey(); // para o 4° horário
+  final _startDateKey = GlobalKey();
+
 
 
 
@@ -630,7 +638,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                   _buildTypeDropdown(),
                   const SizedBox(height: 20),
                   _buildTextField(_dosageController, "Dosagem (por dia)", keyboardType: TextInputType.numberWithOptions(decimal: true), focusNode: _dosageFocusNode),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 20),
                   _buildFrequencyDropdown(),
                   const SizedBox(height: 20),
                   ..._timeControllers.asMap().entries.map((entry) {
@@ -830,14 +838,16 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             key: _typeDropdownTagKey,
             controller: scrollController,
             index: 3,
-            highlightColor: Colors.transparent,
+            highlightColor: Color.fromRGBO(0, 85, 128, 1),
             child: Container(
               key: _typeKey, // ← importante!
               decoration: BoxDecoration(
                 color: Colors.grey[200],
                 border: Border.all(
-                  color: _typeFocusNode.hasFocus ? const Color.fromRGBO(85, 170, 85, 1) : Colors.transparent,
-                  width: 5.0,
+                  color: _typeFocusNode.hasFocus
+                      ? const Color.fromRGBO(85, 170, 85, 1) // Cor quando focado
+                      : Colors.grey[400]!, // Cor padrão quando não focado (ajuste a cor conforme desejado)
+                  width: _typeFocusNode.hasFocus ? 5.0 : 1.0, // Largura da borda: 5 quando focado, 1 padrão (ajuste conforme desejado)
                 ),
                 borderRadius: BorderRadius.circular(4.0),
               ),
@@ -877,7 +887,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                           final position = box.localToGlobal(Offset.zero);
                           final screenHeight = MediaQuery.of(context).size.height;
 
-                          final bottomMargin = 340.0; // espaço para mostrar o dropdown confortavelmente
+                          final bottomMargin = 345.0; // espaço para mostrar o dropdown confortavelmente
 
                           final distanceToBottom = screenHeight - position.dy;
 
@@ -982,7 +992,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                       color: Colors.grey[200],
                     ),
                     maxHeight: 250,
-                    offset: const Offset(0, 9), // Ajuste fino: 9 pixels pra baixo
+                    offset: const Offset(0, 75), // Alinhar com borda inferior
                     elevation: 0,
                   ),
                   items: List.generate(5, (index) => index + 1).map((int value) {
@@ -996,33 +1006,37 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                   }).toList(),
                   onMenuStateChange: (isOpen) async {
                     if (isOpen) {
-                      await Future.delayed(const Duration(milliseconds: 75)); // Manter atraso
-                      try {
-                        final box = _usageKey.currentContext!.findRenderObject() as RenderBox;
-                        final position = box.localToGlobal(Offset.zero);
-                        final screenHeight = MediaQuery.of(context).size.height;
-                        final bottomMargin = 320.0; // Manter margem
-                        final distanceToBottom = screenHeight - position.dy;
-                        if (distanceToBottom < bottomMargin) {
-                          final scrollOffset = bottomMargin - distanceToBottom;
-                          final newOffset = scrollController.offset + scrollOffset;
-                          await scrollController.animateTo(
-                            newOffset,
-                            duration: const Duration(milliseconds: 120), // Manter duração
-                            curve: Curves.easeInOut,
-                          );
+                      WidgetsBinding.instance.addPostFrameCallback((_) async {
+                        await Future.delayed(const Duration(milliseconds: 100));
+                        try {
+                          final box = _usageKey.currentContext!.findRenderObject() as RenderBox;
+                          final position = box.localToGlobal(Offset.zero);
+                          final screenHeight = MediaQuery.of(context).size.height;
+                          final bottomMargin = 324.0;
+                          final distanceToBottom = screenHeight - position.dy;
+                          if (distanceToBottom < bottomMargin) {
+                            final scrollOffset = bottomMargin - distanceToBottom;
+                            final newOffset = scrollController.offset + scrollOffset;
+                            await scrollController.animateTo(
+                              newOffset,
+                              duration: const Duration(milliseconds: 120),
+                              curve: Curves.easeInOut,
+                            );
+                          }
+                        } catch (e) {
+                          print("Erro ao ajustar rolagem: $e");
                         }
-                      } catch (e) {
-                        print("Erro ao ajustar rolagem: $e");
-                      }
+                      });
                     }
                   },
                   onChanged: (int? newValue) async {
                     if (newValue != null) {
+                      print("Antes de setState: _frequency = $_frequency, newValue = $newValue");
                       setState(() {
                         _frequency = newValue;
                         _updateTimeFields(_frequency);
                       });
+                      print("Depois de setState: _frequency = $_frequency");
                       await Future.delayed(const Duration(milliseconds: 150));
                       await scrollController.scrollToIndex(
                         11,
@@ -1031,7 +1045,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                       );
                       FocusScope.of(context).requestFocus(_firstTimeFocusNode);
                     }
-                  }
+                  },
                 ),
               ),
             ),
