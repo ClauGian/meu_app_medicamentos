@@ -1,4 +1,4 @@
-package com.claudinei.meuappmedicamentos
+package com.claudinei.medialerta
 
 import io.flutter.embedding.android.FlutterActivity
 
