@@ -26,39 +26,32 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   final TextEditingController _stockController = TextEditingController();
   final TextEditingController _dosageController = TextEditingController();
   final TextEditingController _startDateController = TextEditingController();
-  List<TextEditingController> _timeControllers = [TextEditingController()];
+  List<TextEditingController> _timeControllers = [];
 
   // FocusNodes
   final FocusNode _nameFocusNode = FocusNode();
   final FocusNode _stockFocusNode = FocusNode();
   final FocusNode _typeFocusNode = FocusNode();
   final FocusNode _dosageFocusNode = FocusNode();
-  final FocusNode _firstTimeFocusNode = FocusNode();
-  final FocusNode _secondTimeFocusNode = FocusNode();
-  final FocusNode _thirdTimeFocusNode = FocusNode();
-  final FocusNode _fourthTimeFocusNode = FocusNode();
-  final FocusNode _fifthTimeFocusNode = FocusNode();
-  final FocusNode _startDateFocusNode = FocusNode();
   final FocusNode _usageFocusNode = FocusNode();
+  List<FocusNode> _timeFocusNodes = [];
+  final FocusNode _startDateFocusNode = FocusNode();
+
+  // Chaves para AutoScrollTag e campos
+  final GlobalKey _nameKey = GlobalKey();
+  final GlobalKey _stockKey = GlobalKey();
+  final GlobalKey _typeKey = GlobalKey();
+  final GlobalKey _dosageKey = GlobalKey();
+  final GlobalKey _usageKey = GlobalKey();
+  List<GlobalKey> _timeKeys = [];
+  final GlobalKey _startDateKey = GlobalKey();
 
   // Scroll controller
   final AutoScrollController _scrollController = AutoScrollController();
 
-  // Chaves para AutoScrollTag e campos
-  final GlobalKey _typeKey = GlobalKey();
-  final GlobalKey _usageKey = GlobalKey();
-  final GlobalKey _nameKey = GlobalKey();
-  final GlobalKey _stockKey = GlobalKey();
-  final GlobalKey _dosageKey = GlobalKey();  
-  final GlobalKey _firstTimeKey = GlobalKey();
-  final GlobalKey _secondTimeKey = GlobalKey();
-  final GlobalKey _thirdTimeKey = GlobalKey();
-  final GlobalKey _fourthTimeKey = GlobalKey();
-  final GlobalKey _startDateKey = GlobalKey();
-
-  // Outros estados
+  // Estados
   String? _type;
-  int? _frequency;
+  String? _frequency;
   bool _isContinuous = false;
   File? _image;
   bool _showPhotoOption = false;
@@ -67,54 +60,88 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   // Picker para foto
   final ImagePicker _picker = ImagePicker();
 
+  // Função auxiliar para contar doses
+  int _getDoseCount(String? frequency) {
+    if (frequency == null) return 0;
+    final number = int.tryParse(frequency.split('x')[0].trim());
+    return number ?? 0;
+  }
+
+  void _customSetState(VoidCallback fn) {
+    print("setState chamado");
+    setState(fn);
+  }
+
   @override
   void initState() {
     super.initState();
     _databaseFuture = _initDatabase();
+    _scrollController = AutoScrollController();
     _startDateController.text = DateFormat('dd/MM/yyyy').format(DateTime.now());
+
+    // Inicializar time controllers, focus nodes e keys
+    _timeControllers = List.generate(5, (_) => TextEditingController());
+    _timeFocusNodes = List.generate(5, (index) => FocusNode()..addListener(() {
+          print("Time FocusNode [$index]: hasFocus=${_timeFocusNodes[index].hasFocus}");
+        }));
+    _timeKeys = List.generate(5, (_) => GlobalKey());
+
+    // Inicializar FocusNodes com listeners
+    _nameFocusNode.addListener(() {
+      print("Name FocusNode: hasFocus=${_nameFocusNode.hasFocus}");
+      if (!_nameFocusNode.hasFocus) {
+        _checkDuplicateMedicationOnNameFieldExit();
+      }
+    });
+    _stockFocusNode.addListener(() {
+      print("Stock FocusNode: hasFocus=${_stockFocusNode.hasFocus}");
+    });
+    _typeFocusNode.addListener(() {
+      print("Type FocusNode: hasFocus=${_typeFocusNode.hasFocus}");
+    });
+    _dosageFocusNode.addListener(() {
+      print("Dosage FocusNode: hasFocus=${_dosageFocusNode.hasFocus}");
+    });
+    _usageFocusNode.addListener(() {
+      print("Usage FocusNode: hasFocus=${_usageFocusNode.hasFocus}");
+    });
+    _startDateFocusNode.addListener(() {
+      print("StartDate FocusNode: hasFocus=${_startDateFocusNode.hasFocus}");
+    });
 
     if (widget.medication != null) {
       _fillFieldsForEditing();
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          _scrollController.jumpTo(0.0);
-          _nameFocusNode.requestFocus();
-        }
-      });
-    });
-
-    _nameFocusNode.addListener(() {
-      if (!_nameFocusNode.hasFocus) {
-        _checkDuplicateMedicationOnNameFieldExit();
-      }
-    });
-
     _checkUserAge();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0.0);
+      }
+      _nameFocusNode.requestFocus();
+    });
   }
 
   @override
   void dispose() {
-    _nameFocusNode.dispose();
-    _stockFocusNode.dispose();
-    _typeFocusNode.dispose();
-    _dosageFocusNode.dispose();
-    _firstTimeFocusNode.dispose();
-    _secondTimeFocusNode.dispose();
-    _thirdTimeFocusNode.dispose();
-    _fourthTimeFocusNode.dispose();
-    _fifthTimeFocusNode.dispose();
-    _startDateFocusNode.dispose();
-    _usageFocusNode.dispose();
-
     _nameController.dispose();
     _stockController.dispose();
     _dosageController.dispose();
     _startDateController.dispose();
-    _timeControllers.forEach((controller) => controller.dispose());
-
+    for (var controller in _timeControllers) {
+      controller.dispose();
+    }
+    _nameFocusNode.dispose();
+    _stockFocusNode.dispose();
+    _typeFocusNode.dispose();
+    _dosageFocusNode.dispose();
+    _usageFocusNode.dispose();
+    for (var node in _timeFocusNodes) {
+      node.dispose();
+    }
+    _startDateFocusNode.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -560,6 +587,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
 
   @override
   Widget build(BuildContext context) {
+    print("Build: MedicationRegistrationScreen reconstruído");
     return FutureBuilder<Database>(
       future: _databaseFuture,
       builder: (context, snapshot) {
@@ -606,65 +634,67 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   }
 
   Widget _buildFormBody() {
-    return ListView(
-      controller: _scrollController,
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
-      children: [
-        _buildTextField(
-          controller: _nameController,
-          label: "Nome do Medicamento",
-          focusNode: _nameFocusNode,
-          autofocus: true,
-          keyTag: _nameKey,
-          textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          onSubmitted: (_) {
-            FocusScope.of(context).requestFocus(_stockFocusNode);
-            _scrollToField(_stockKey);
-          },
-        ),
-        const SizedBox(height: 20),
-        _buildTextField(
-          controller: _stockController,
-          label: "Quantidade Total",
-          focusNode: _stockFocusNode,
-          keyboardType: TextInputType.number,
-          textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-          keyTag: _stockKey,
-          onSubmitted: (_) {
-            FocusScope.of(context).requestFocus(_typeFocusNode);
-            _scrollToField(_typeKey);
-          },
-        ),
-        const SizedBox(height: 20),
-        _buildTypeDropdown(),
-        const SizedBox(height: 20),
-        _buildTextField(
-          controller: _dosageController,
-          label: "Dosagem (por dia)",
-          focusNode: _dosageFocusNode,
-          keyboardType: TextInputType.number,
-          textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-          keyTag: _dosageKey,
-          onSubmitted: (_) {
-            FocusScope.of(context).requestFocus(_usageFocusNode);
-            _scrollToField(_usageKey);
-          },
-        ),
-        const SizedBox(height: 20),
-        _buildFrequencyDropdown(),
-        const SizedBox(height: 20),
-        ..._buildTimeFields(),
-        const SizedBox(height: 20),
-        _buildContinuousUsageSwitch(),
-        const SizedBox(height: 20),
-        _buildDateField(),
-        const SizedBox(height: 20),
-        _buildPhotoSection(),
-        const SizedBox(height: 20),
-        _buildSaveButton(),
-      ],
+      child: Column(
+        children: [
+          _buildTextField(
+            controller: _nameController,
+            label: "Nome do Medicamento",
+            focusNode: _nameFocusNode,
+            autofocus: true,
+            keyTag: _nameKey,
+            textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            onSubmitted: (_) {
+              FocusScope.of(context).requestFocus(_stockFocusNode);
+              _scrollToField(_stockKey);
+            },
+          ),
+          const SizedBox(height: 20),
+
+          _buildTextField(
+            controller: _stockController,
+            label: "Quantidade Total",
+            focusNode: _stockFocusNode,
+            keyboardType: TextInputType.number,
+            textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+            keyTag: _stockKey,
+            onSubmitted: (_) {
+              FocusScope.of(context).requestFocus(_typeFocusNode);
+              _scrollToField(_typeKey);
+            },
+          ),
+          const SizedBox(height: 20),
+          _buildTypeDropdown(),
+          const SizedBox(height: 20),
+          _buildTextField(
+            controller: _dosageController,
+            label: "Dosagem (por dia)",
+            focusNode: _dosageFocusNode,
+            keyboardType: TextInputType.number,
+            textStyle: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+            keyTag: _dosageKey,
+            onSubmitted: (_) {
+              FocusScope.of(context).requestFocus(_usageFocusNode);
+              _scrollToField(_usageKey);
+            },
+          ),
+          const SizedBox(height: 20),
+          _buildFrequencyDropdown(),
+          const SizedBox(height: 20),
+          ..._buildTimeFields(),
+          const SizedBox(height: 20),
+          _buildContinuousUsageSwitch(),
+          const SizedBox(height: 20),
+          _buildDateField(),
+          const SizedBox(height: 20),
+          _buildPhotoSection(),
+          const SizedBox(height: 20),
+          _buildSaveButton(),
+        ],
+      ),
     );
   }
 
@@ -708,152 +738,37 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   }
 
   Widget _buildTypeDropdown() {
-    const List<String> medicationTypes = ["Comprimidos", "Cápsulas", "Gotas", "Xarope", "Injeção"];
-    final GlobalKey key = GlobalKey();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Tipo do Medicamento", style: getLabelStyle()),
-        const SizedBox(height: 4),
-        Container(
-          key: key,
-          decoration: getDropdownDecoration(hasFocus: _typeFocusNode.hasFocus),
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton2<String>(
-              isExpanded: true,
-              hint: const Text(
-                "Selecione o tipo",
-                style: TextStyle(fontSize: 24),
-                textAlign: TextAlign.center,
-              ),
-              items: medicationTypes.map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(
-                    value,
-                    style: const TextStyle(fontSize: 24),
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }).toList(),
-              value: _type,
-              onChanged: (String? newValue) {
-                setState(() {
-                  _type = newValue;
-                });
-                _scrollToField(key);
-                FocusScope.of(context).requestFocus(_dosageFocusNode);
-              },
-              customButton: Container(
-                height: 50,
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _type ?? "Selecione o tipo",
-                        style: const TextStyle(fontSize: 24),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const Icon(
-                      Icons.arrow_drop_down,
-                      color: Color.fromRGBO(0, 85, 128, 1),
-                      size: 30,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    return TypeDropdown(
+      selectedType: _type,
+      focusNode: _typeFocusNode,
+      onChanged: (String? newValue) {
+        print("onChanged: Atualizando _type para $newValue");
+        _customSetState(() {
+          _type = newValue;
+        });
+        FocusScope.of(context).requestFocus(_dosageFocusNode);
+      },
     );
   }
 
   Widget _buildFrequencyDropdown() {
-    final GlobalKey key = GlobalKey();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text("Modo de Usar", style: getLabelStyle()),
-        const SizedBox(height: 4),
-        Container(
-          key: key,
-          decoration: getDropdownDecoration(hasFocus: _usageFocusNode.hasFocus),
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton2<int>(
-              isExpanded: true,
-              hint: const Text(
-                "Selecione",
-                style: TextStyle(fontSize: 24),
-                textAlign: TextAlign.center,
-              ),
-              items: List.generate(5, (index) => index + 1).map((int value) {
-                return DropdownMenuItem<int>(
-                  value: value,
-                  child: Text(
-                    "$value x por dia",
-                    style: const TextStyle(fontSize: 24),
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }).toList(),
-              value: _frequency,
-              onChanged: (int? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _frequency = newValue;
-                    _timeControllers = List.generate(newValue, (_) => TextEditingController());
-                  });
-                  _scrollToField(key);
-                  FocusScope.of(context).requestFocus(_firstTimeFocusNode);
-                }
-              },
-              customButton: Container(
-                height: 50,
-                alignment: Alignment.center,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _frequency != null ? "$_frequency x por dia" : "Selecione",
-                        style: const TextStyle(fontSize: 24),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const Icon(
-                      Icons.arrow_drop_down,
-                      color: Color.fromRGBO(0, 85, 128, 1),
-                      size: 30,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    return FrequencyDropdown(
+      selectedFrequency: _frequency,
+      focusNode: _usageFocusNode,
+      onChanged: (String? newValue) {
+        print("onChanged: Atualizando _frequency para $newValue");
+        _customSetState(() {
+          _frequency = newValue;
+        });
+        FocusScope.of(context).requestFocus(_timeFocusNodes.isNotEmpty ? _timeFocusNodes[0] : _continuousUseFocusNode ?? _startDateFocusNode);
+      },
     );
   }
 
   List<Widget> _buildTimeFields() {
-    final List<FocusNode> timeFocusNodes = [
-      _firstTimeFocusNode,
-      _secondTimeFocusNode,
-      _thirdTimeFocusNode,
-      _fourthTimeFocusNode,
-      _fifthTimeFocusNode,
-    ];
-
-    return List.generate(_timeControllers.length, (index) {
-      final GlobalKey key = GlobalKey();
+    final doseCount = _getDoseCount(_frequency);
+    print("Building time fields: doseCount=$doseCount");
+    return List.generate(doseCount, (index) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 10.0),
         child: Column(
@@ -863,7 +778,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             const SizedBox(height: 4),
             TextField(
               controller: _timeControllers[index],
-              focusNode: index < timeFocusNodes.length ? timeFocusNodes[index] : null,
+              focusNode: _timeFocusNodes[index],
               readOnly: true,
               decoration: getInputDecoration("Selecione o horário"),
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -872,20 +787,28 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                 print("onTap: Horário ${index + 1}");
                 await _selectTime(context, index);
                 print("selectTime concluído: Horário ${index + 1}");
-                _scrollToField(key);
-                if (index < _timeControllers.length - 1) {
-                  if (!timeFocusNodes[index + 1].hasFocus) {
-                    print("Movendo foco para Horário ${index + 2}");
-                    FocusScope.of(context).requestFocus(timeFocusNodes[index + 1]);
-                  }
+                _scrollToField(_timeKeys[index]);
+                if (index < doseCount - 1) {
+                  print("Movendo foco para Horário ${index + 2}");
+                  FocusScope.of(context).requestFocus(_timeFocusNodes[index + 1]);
                 } else {
-                  if (!_startDateFocusNode.hasFocus) {
-                    print("Movendo foco para Data de Início");
-                    FocusScope.of(context).requestFocus(_startDateFocusNode);
-                  }
+                  print("Movendo foco para Data de Início");
+                  FocusScope.of(context).requestFocus(_startDateFocusNode);
                 }
               },
-              key: key,
+              onSubmitted: (_) {
+                print("onSubmitted: Horário ${index + 1}");
+                if (index < doseCount - 1) {
+                  print("Movendo foco para Horário ${index + 2}");
+                  FocusScope.of(context).requestFocus(_timeFocusNodes[index + 1]);
+                  _scrollToField(_timeKeys[index + 1]);
+                } else {
+                  print("Movendo foco para Data de Início");
+                  FocusScope.of(context).requestFocus(_startDateFocusNode);
+                  _scrollToField(_startDateKey);
+                }
+              },
+              key: _timeKeys[index],
             ),
           ],
         ),
@@ -969,6 +892,257 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
         child: const Text("Salvar", style: TextStyle(color: Colors.white, fontSize: 24)),
         style: getButtonStyle(),
       ),
+    );
+  }
+}
+
+
+// Nova classe TypeDropdown começa aqui.
+
+
+
+class TypeDropdown extends StatefulWidget {
+  final String? selectedType;
+  final Function(String?) onChanged;
+  final FocusNode focusNode;
+
+  const TypeDropdown({
+    super.key,
+    this.selectedType,
+    required this.onChanged,
+    required this.focusNode,
+  });
+
+  @override
+  TypeDropdownState createState() => TypeDropdownState();
+}
+
+class TypeDropdownState extends State<TypeDropdown> {
+  @override
+  void initState() {
+    super.initState();
+    widget.focusNode.addListener(() {
+      print("FocusNode: hasFocus=${widget.focusNode.hasFocus}");
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    print("Build: TypeDropdown reconstruído");
+    const List<String> medicationTypes = ["Comprimidos", "Cápsulas", "Gotas", "Xarope", "Injeção"];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Tipo do Medicamento", style: _getLabelStyle()),
+        const SizedBox(height: 4),
+        Focus(
+          focusNode: widget.focusNode,
+          onFocusChange: (hasFocus) {
+            print("onFocusChange: hasFocus=$hasFocus");
+            setState(() {
+              print("setState: Atualizando borda para hasFocus=$hasFocus");
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            decoration: _getDropdownDecoration(hasFocus: widget.focusNode.hasFocus),
+            child: DropdownButton2<String>(
+              isExpanded: true,
+              hint: const Text(
+                "Selecione o tipo",
+                style: TextStyle(fontSize: 24),
+                textAlign: TextAlign.center,
+              ),
+              items: medicationTypes.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(
+                    value,
+                    style: const TextStyle(fontSize: 24),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              }).toList(),
+              value: widget.selectedType,
+              onChanged: (String? newValue) {
+                print("Dropdown Tipo: Selecionado $newValue");
+                widget.onChanged(newValue);
+              },
+              onMenuStateChange: (isOpen) {
+                print("Dropdown Tipo: Menu ${isOpen ? 'aberto' : 'fechado'}");
+              },
+              dropdownStyleData: DropdownStyleData(
+                maxHeight: 300,
+                width: MediaQuery.of(context).size.width - 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4.0),
+                  color: Colors.grey[200],
+                ),
+                offset: const Offset(0, -324), // bottomMargin como offset negativo
+              ),
+              buttonStyleData: const ButtonStyleData(
+                height: 50,
+                padding: EdgeInsets.symmetric(horizontal: 12.0),
+              ),
+              iconStyleData: const IconStyleData(
+                icon: Icon(
+                  Icons.arrow_drop_down,
+                  color: Color.fromRGBO(0, 85, 128, 1),
+                  size: 30,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  TextStyle _getLabelStyle() {
+    return const TextStyle(
+      color: Color.fromRGBO(0, 85, 128, 1),
+      fontSize: 20,
+      fontWeight: FontWeight.bold,
+    );
+  }
+
+  BoxDecoration _getDropdownDecoration({required bool hasFocus}) {
+    print("getDropdownDecoration: hasFocus=$hasFocus");
+    return BoxDecoration(
+      color: Colors.grey[200], // Fundo fixo
+      border: Border.all(
+        color: hasFocus ? const Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
+        width: hasFocus ? 5.0 : 1.0,
+      ),
+      borderRadius: BorderRadius.circular(4.0),
+    );
+  }
+}
+
+class FrequencyDropdown extends StatefulWidget {
+  final String? selectedFrequency;
+  final Function(String?) onChanged;
+  final FocusNode focusNode;
+
+  const FrequencyDropdown({
+    super.key,
+    this.selectedFrequency,
+    required this.onChanged,
+    required this.focusNode,
+  });
+
+  @override
+  FrequencyDropdownState createState() => FrequencyDropdownState();
+}
+
+class FrequencyDropdownState extends State<FrequencyDropdown> {
+  @override
+  void initState() {
+    super.initState();
+    widget.focusNode.addListener(() {
+      print("FocusNode (Frequency): hasFocus=${widget.focusNode.hasFocus}");
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    print("Build: FrequencyDropdown reconstruído");
+    const List<String> frequencyOptions = [
+      "1x ao dia",
+      "2x ao dia",
+      "3x ao dia",
+      "4x ao dia",
+      "5x ao dia",
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Modo de Usar", style: _getLabelStyle()),
+        const SizedBox(height: 4),
+        Focus(
+          focusNode: widget.focusNode,
+          onFocusChange: (hasFocus) {
+            print("onFocusChange (Frequency): hasFocus=$hasFocus");
+            setState(() {
+              print("setState: Atualizando borda para hasFocus=$hasFocus");
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            decoration: _getDropdownDecoration(hasFocus: widget.focusNode.hasFocus),
+            child: DropdownButton2<String>(
+              isExpanded: true,
+              hint: const Text(
+                "Selecione a frequência",
+                style: TextStyle(fontSize: 24),
+                textAlign: TextAlign.center,
+              ),
+              items: frequencyOptions.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(
+                    value,
+                    style: const TextStyle(fontSize: 24),
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              }).toList(),
+              value: widget.selectedFrequency,
+              onChanged: (String? newValue) {
+                print("Dropdown Frequência: Selecionado $newValue");
+                widget.onChanged(newValue);
+              },
+              onMenuStateChange: (isOpen) {
+                print("Dropdown Frequência: Menu ${isOpen ? 'aberto' : 'fechado'}");
+              },
+              dropdownStyleData: DropdownStyleData(
+                maxHeight: 300,
+                width: MediaQuery.of(context).size.width - 40,
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4.0),
+                  color: Colors.grey[200],
+                ),
+                offset: const Offset(0, -324), // bottomMargin como offset negativo
+              ),
+              buttonStyleData: const ButtonStyleData(
+                height: 50,
+                padding: EdgeInsets.symmetric(horizontal: 12.0),
+              ),
+              iconStyleData: const IconStyleData(
+                icon: Icon(
+                  Icons.arrow_drop_down,
+                  color: Color.fromRGBO(0, 85, 128, 1),
+                  size: 30,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  TextStyle _getLabelStyle() {
+    return const TextStyle(
+      color: Color.fromRGBO(0, 85, 128, 1),
+      fontSize: 20,
+      fontWeight: FontWeight.bold,
+    );
+  }
+
+  BoxDecoration _getDropdownDecoration({required bool hasFocus}) {
+    print("getDropdownDecoration (Frequency): hasFocus=$hasFocus");
+    return BoxDecoration(
+      color: Colors.grey[200], // Fundo fixo
+      border: Border.all(
+        color: hasFocus ? const Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
+        width: hasFocus ? 5.0 : 1.0,
+      ),
+      borderRadius: BorderRadius.circular(4.0),
     );
   }
 }
