@@ -10,6 +10,8 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 import '../notification_service.dart';
 import 'medication_list_screen.dart';
+import 'dart:async';
+
 
 class MedicationRegistrationScreen extends StatefulWidget {
   final Map<String, dynamic>? medication;
@@ -34,6 +36,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   final FocusNode _typeFocusNode = FocusNode();
   final FocusNode _dosageFocusNode = FocusNode();
   final FocusNode _usageFocusNode = FocusNode();
+  final FocusNode _continuousUseFocusNode = FocusNode();
   List<FocusNode> _timeFocusNodes = [];
   final FocusNode _startDateFocusNode = FocusNode();
 
@@ -51,7 +54,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
 
   // Estados
   String? _type;
-  String? _frequency;
+  String? _frequency;  
   bool _isContinuous = false;
   File? _image;
   bool _showPhotoOption = false;
@@ -76,7 +79,6 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   void initState() {
     super.initState();
     _databaseFuture = _initDatabase();
-    _scrollController = AutoScrollController();
     _startDateController.text = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
     // Inicializar time controllers, focus nodes e keys
@@ -107,6 +109,9 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
     });
     _startDateFocusNode.addListener(() {
       print("StartDate FocusNode: hasFocus=${_startDateFocusNode.hasFocus}");
+    });
+    _continuousUseFocusNode.addListener(() {
+      print("ContinuousUse FocusNode: hasFocus=${_continuousUseFocusNode.hasFocus}");
     });
 
     if (widget.medication != null) {
@@ -140,6 +145,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
     for (var node in _timeFocusNodes) {
       node.dispose();
     }
+    _continuousUseFocusNode.dispose();
     _startDateFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -194,25 +200,51 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
 
   Future<void> _scrollToField(GlobalKey key) async {
     try {
+      if (!_scrollController.hasClients) {
+        print("❌ ScrollController não está vinculado, ignorando scroll para key: $key");
+        return;
+      }
+      
+      print("✅ Chamou _scrollToField para a key: $key");
+
+      // Pequena espera para garantir que o teclado abriu e layout estabilizou
+      await Future.delayed(const Duration(milliseconds: 150));
+
       final context = key.currentContext;
       if (context != null) {
         final RenderBox box = context.findRenderObject() as RenderBox;
         final position = box.localToGlobal(Offset.zero).dy;
+        final fieldHeight = box.size.height;
         final screenHeight = MediaQuery.of(context).size.height;
         final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
-        final targetScrollOffset = position - (screenHeight - keyboardHeight) / 2 + box.size.height / 2;
+        final availableHeight = screenHeight - keyboardHeight;
 
-        print("Scrolling to key: $key, targetOffset: $targetScrollOffset");
-        await _scrollController.animateTo(
-          targetScrollOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        print("🧩 Dados atuais para o scroll:");
+        print("- Posição Y do campo: $position");
+        print("- Altura do campo: $fieldHeight");
+        print("- Altura total da tela: $screenHeight");
+        print("- Altura do teclado: $keyboardHeight");
+        print("- Altura visível (sem teclado): $availableHeight");
+
+        // Novo cálculo: Centralizar o campo na área disponível (sem teclado)
+        final targetOffset = _scrollController.offset + (position + fieldHeight / 2) - (availableHeight / 2);
+
+        print("🎯 Tentando rolar até o offset: $targetOffset (máximo permitido: ${_scrollController.position.maxScrollExtent})");
+
+        // Faz o scroll animado
+        _scrollController.animateTo(
+          targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
+      } else {
+        print("⚠️ Contexto nulo para key: $key, ignorando scroll");
       }
     } catch (e) {
-      print("Erro ao centralizar campo: $e");
+      print("🔥 Erro ao tentar centralizar campo: $e");
     }
   }
+
 
   void _checkDuplicateMedicationOnNameFieldExit() async {
     if (!mounted) return;
@@ -293,13 +325,13 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
     );
   }
 
-  Future<void> _selectTime(BuildContext context, int index) async {
+  Future<void> _selectTime(BuildContext parentContext, int index) async {
     int selectedHour = 8;
     int selectedMinute = 0;
 
     await showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
+      context: parentContext,
+      builder: (BuildContext modalContext) {
         return SizedBox(
           height: 350,
           child: Column(
@@ -345,7 +377,31 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                   setState(() {
                     _timeControllers[index].text = "${selectedHour.toString().padLeft(2, '0')}:${selectedMinute.toString().padLeft(2, '0')}";
                   });
-                  Navigator.pop(context);
+                  Navigator.pop(modalContext);
+                  final nextIndex = index + 1;
+                  if (nextIndex < _timeFocusNodes.length) {
+                    print("Movendo foco para Horário ${nextIndex + 1}");
+                    FocusScope.of(parentContext).requestFocus(_timeFocusNodes[nextIndex]);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (_timeKeys[nextIndex].currentContext != null) {
+                        print("Iniciando scroll para Horário ${nextIndex + 1}");
+                        _scrollToField(_timeKeys[nextIndex]);
+                      } else {
+                        print("Contexto nulo para _timeKeys[$nextIndex] após selecionar Horário ${index + 1}");
+                      }
+                    });
+                  } else {
+                    print("Movendo foco para Data de Início após Horário ${index + 1}");
+                    FocusScope.of(parentContext).requestFocus(_startDateFocusNode);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (_startDateKey.currentContext != null) {
+                        print("Iniciando scroll para Data de Início após Horário ${index + 1}");
+                        _scrollToField(_startDateKey);
+                      } else {
+                        print("Contexto nulo para _startDateKey após selecionar Horário ${index + 1}");
+                      }
+                    });
+                  }
                 },
                 child: const Text("OK", style: TextStyle(fontSize: 20, color: Color.fromRGBO(0, 105, 148, 1))),
               ),
@@ -603,6 +659,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
         }
 
         return Scaffold(
+          resizeToAvoidBottomInset: true,
           backgroundColor: const Color(0xFFCCCCCC),
           appBar: _buildAppBar(),
           body: _buildFormBody(),
@@ -635,9 +692,11 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
 
   Widget _buildFormBody() {
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(20.0),
       child: Column(
         children: [
+          
           _buildTextField(
             controller: _nameController,
             label: "Nome do Medicamento",
@@ -661,13 +720,21 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             textAlign: TextAlign.center,
             keyTag: _stockKey,
             onSubmitted: (_) {
+              print("onSubmitted: Quantidade Total - Iniciando");
               FocusScope.of(context).requestFocus(_typeFocusNode);
-              _scrollToField(_typeKey);
+              print("onSubmitted: Quantidade Total - Foco solicitado para _typeFocusNode");
+
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                print("onSubmitted: Quantidade Total - Tentando scroll após nova frame");
+                _scrollToField(_typeKey);
+              });
             },
           ),
           const SizedBox(height: 20),
+
           _buildTypeDropdown(),
           const SizedBox(height: 20),
+
           _buildTextField(
             controller: _dosageController,
             label: "Dosagem (por dia)",
@@ -677,22 +744,37 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
             textAlign: TextAlign.center,
             keyTag: _dosageKey,
             onSubmitted: (_) {
+              print("onSubmitted: Dosagem - Iniciando");
               FocusScope.of(context).requestFocus(_usageFocusNode);
-              _scrollToField(_usageKey);
+              print("onSubmitted: Dosagem - Foco solicitado para _usageFocusNode");
+
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                print("onSubmitted: Dosagem - Tentando scroll após nova frame");
+                _scrollToField(_usageKey);
+              });
             },
           ),
           const SizedBox(height: 20),
+
           _buildFrequencyDropdown(),
           const SizedBox(height: 20),
+
           ..._buildTimeFields(),
           const SizedBox(height: 20),
+
           _buildContinuousUsageSwitch(),
           const SizedBox(height: 20),
+
           _buildDateField(),
           const SizedBox(height: 20),
+
           _buildPhotoSection(),
           const SizedBox(height: 20),
+
           _buildSaveButton(),
+
+          SizedBox(height: 100),
+
         ],
       ),
     );
@@ -747,7 +829,15 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           _type = newValue;
         });
         FocusScope.of(context).requestFocus(_dosageFocusNode);
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          print("onChanged: Tipo - Tentando scroll para Dosagem após nova frame");
+          _scrollToField(_dosageKey);
+        });
       },
+      scrollToField: _scrollToField,
+      keyTag: _typeKey,
+      scrollController: _scrollController,
     );
   }
 
@@ -761,7 +851,15 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           _frequency = newValue;
         });
         FocusScope.of(context).requestFocus(_timeFocusNodes.isNotEmpty ? _timeFocusNodes[0] : _continuousUseFocusNode ?? _startDateFocusNode);
+        if (_timeFocusNodes.isNotEmpty && _timeKeys.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToField(_timeKeys[0]);
+          });
+        }
       },
+      scrollToField: _scrollToField,
+      keyTag: _usageKey,
+      scrollController: _scrollController,
     );
   }
 
@@ -805,7 +903,33 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
                 } else {
                   print("Movendo foco para Data de Início");
                   FocusScope.of(context).requestFocus(_startDateFocusNode);
-                  _scrollToField(_startDateKey);
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      if (_startDateFocusNode.hasFocus) {
+                        print("✅ Data de Início focado - Scrollando até o final");
+                        _scrollController.animateTo(
+                          _scrollController.position.maxScrollExtent,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeInOut,
+                        );
+                      } else {
+                        print("⏳ Data de Início ainda sem foco - aguardando mais");
+                        Future.delayed(const Duration(milliseconds: 100), () {
+                          if (_startDateFocusNode.hasFocus) {
+                            print("✅ Data de Início focado (segunda tentativa) - Scrollando até o final");
+                            _scrollController.animateTo(
+                              _scrollController.position.maxScrollExtent,
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          } else {
+                            print("⚠️ Data de Início ainda sem foco mesmo depois da segunda tentativa. Não scrollando para evitar erro.");
+                          }
+                        });
+                      }
+                    });
+                  });
                 }
               },
               key: _timeKeys[index],
@@ -817,16 +941,19 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   }
 
   Widget _buildContinuousUsageSwitch() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text("Uso Contínuo", style: getLabelStyle()),
-        Switch(
-          value: _isContinuous,
-          onChanged: (value) => setState(() => _isContinuous = value),
-          activeColor: const Color.fromRGBO(0, 105, 148, 1),
-        ),
-      ],
+    return Focus(
+      focusNode: _continuousUseFocusNode,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text("Uso Contínuo", style: getLabelStyle()),
+          Switch(
+            value: _isContinuous,
+            onChanged: (value) => setState(() => _isContinuous = value),
+            activeColor: const Color.fromRGBO(0, 105, 148, 1),
+          ),
+        ],
+      ),
     );
   }
 
@@ -905,12 +1032,18 @@ class TypeDropdown extends StatefulWidget {
   final String? selectedType;
   final Function(String?) onChanged;
   final FocusNode focusNode;
+  final Function(GlobalKey) scrollToField;
+  final GlobalKey keyTag;
+  final ScrollController scrollController;
 
   const TypeDropdown({
     super.key,
     this.selectedType,
     required this.onChanged,
     required this.focusNode,
+    required this.scrollToField,
+    required this.keyTag,
+    required this.scrollController,
   });
 
   @override
@@ -932,6 +1065,7 @@ class TypeDropdownState extends State<TypeDropdown> {
     const List<String> medicationTypes = ["Comprimidos", "Cápsulas", "Gotas", "Xarope", "Injeção"];
 
     return Column(
+      key: widget.keyTag,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text("Tipo do Medicamento", style: _getLabelStyle()),
@@ -949,10 +1083,18 @@ class TypeDropdownState extends State<TypeDropdown> {
             decoration: _getDropdownDecoration(hasFocus: widget.focusNode.hasFocus),
             child: DropdownButton2<String>(
               isExpanded: true,
-              hint: const Text(
-                "Selecione o tipo",
-                style: TextStyle(fontSize: 24),
-                textAlign: TextAlign.center,
+              isDense: false,
+              openWithLongPress: false,
+              hint: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 2.0),
+                child: Text(
+                  "Selecione o tipo",
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: Color.fromRGBO(0, 85, 128, 1),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ),
               items: medicationTypes.map((String value) {
                 return DropdownMenuItem<String>(
@@ -969,8 +1111,33 @@ class TypeDropdownState extends State<TypeDropdown> {
                 print("Dropdown Tipo: Selecionado $newValue");
                 widget.onChanged(newValue);
               },
-              onMenuStateChange: (isOpen) {
+              onMenuStateChange: (isOpen) async {
                 print("Dropdown Tipo: Menu ${isOpen ? 'aberto' : 'fechado'}");
+                if (isOpen) {
+                  print("onMenuStateChange: Tipo - Ajustando rolagem dinâmica");
+                  await Future.delayed(const Duration(milliseconds: 50));
+                  try {
+                    final box = widget.keyTag.currentContext!.findRenderObject() as RenderBox;
+                    final position = box.localToGlobal(Offset.zero);
+                    final screenHeight = MediaQuery.of(context).size.height;
+                    const bottomMargin = 310.0;
+
+                    final distanceToBottom = screenHeight - position.dy;
+                    if (distanceToBottom < bottomMargin) {
+                      final scrollOffset = bottomMargin - distanceToBottom;
+                      final newOffset = widget.scrollController.offset + scrollOffset;
+                      await widget.scrollController.animateTo(
+                        newOffset,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                      print("Rolagem ajustada em $scrollOffset pixels para Tipo");
+                    }
+                  } catch (e) {
+                    print("Erro ao ajustar rolagem dinâmica para Tipo: $e");
+                    widget.scrollToField(widget.keyTag);
+                  }
+                }
               },
               dropdownStyleData: DropdownStyleData(
                 maxHeight: 300,
@@ -980,10 +1147,10 @@ class TypeDropdownState extends State<TypeDropdown> {
                   borderRadius: BorderRadius.circular(4.0),
                   color: Colors.grey[200],
                 ),
-                offset: const Offset(0, -324), // bottomMargin como offset negativo
+                offset: const Offset(-15, -5),
               ),
               buttonStyleData: const ButtonStyleData(
-                height: 50,
+                height: 73,
                 padding: EdgeInsets.symmetric(horizontal: 12.0),
               ),
               iconStyleData: const IconStyleData(
@@ -1011,7 +1178,7 @@ class TypeDropdownState extends State<TypeDropdown> {
   BoxDecoration _getDropdownDecoration({required bool hasFocus}) {
     print("getDropdownDecoration: hasFocus=$hasFocus");
     return BoxDecoration(
-      color: Colors.grey[200], // Fundo fixo
+      color: Colors.grey[200],
       border: Border.all(
         color: hasFocus ? const Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
         width: hasFocus ? 5.0 : 1.0,
@@ -1025,12 +1192,18 @@ class FrequencyDropdown extends StatefulWidget {
   final String? selectedFrequency;
   final Function(String?) onChanged;
   final FocusNode focusNode;
+  final Function(GlobalKey) scrollToField;
+  final GlobalKey keyTag;
+  final ScrollController scrollController;
 
   const FrequencyDropdown({
     super.key,
     this.selectedFrequency,
     required this.onChanged,
     required this.focusNode,
+    required this.scrollToField,
+    required this.keyTag,
+    required this.scrollController,
   });
 
   @override
@@ -1058,72 +1231,106 @@ class FrequencyDropdownState extends State<FrequencyDropdown> {
     ];
 
     return Column(
+      key: widget.keyTag,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Modo de Usar", style: _getLabelStyle()),
-        const SizedBox(height: 4),
-        Focus(
-          focusNode: widget.focusNode,
-          onFocusChange: (hasFocus) {
-            print("onFocusChange (Frequency): hasFocus=$hasFocus");
-            setState(() {
-              print("setState: Atualizando borda para hasFocus=$hasFocus");
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12.0),
-            decoration: _getDropdownDecoration(hasFocus: widget.focusNode.hasFocus),
-            child: DropdownButton2<String>(
-              isExpanded: true,
-              hint: const Text(
-                "Selecione a frequência",
-                style: TextStyle(fontSize: 24),
+      Text("Modo de Usar", style: _getLabelStyle()),
+      const SizedBox(height: 4),
+      Focus(
+        focusNode: widget.focusNode,
+        onFocusChange: (hasFocus) {
+          print("onFocusChange (Frequency): hasFocus=$hasFocus");
+          setState(() {
+            print("setState: Atualizando borda para hasFocus=$hasFocus");
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+          decoration: _getDropdownDecoration(hasFocus: widget.focusNode.hasFocus),
+          child: DropdownButton2<String>(
+            isExpanded: true,
+            isDense: false,
+            openWithLongPress: false,
+            hint: const Padding(
+              padding: EdgeInsets.symmetric(vertical: 2.0),
+              child: Text(
+                "Selecione o modo",
+                style: TextStyle(
+                  fontSize: 20,
+                  color: Color.fromRGBO(0, 85, 128, 1),
+                ),
                 textAlign: TextAlign.center,
               ),
-              items: frequencyOptions.map((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(
-                    value,
-                    style: const TextStyle(fontSize: 24),
-                    textAlign: TextAlign.center,
-                  ),
-                );
-              }).toList(),
-              value: widget.selectedFrequency,
-              onChanged: (String? newValue) {
-                print("Dropdown Frequência: Selecionado $newValue");
-                widget.onChanged(newValue);
-              },
-              onMenuStateChange: (isOpen) {
-                print("Dropdown Frequência: Menu ${isOpen ? 'aberto' : 'fechado'}");
-              },
-              dropdownStyleData: DropdownStyleData(
-                maxHeight: 300,
-                width: MediaQuery.of(context).size.width - 40,
-                padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4.0),
-                  color: Colors.grey[200],
+            ),
+            items: frequencyOptions.map((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(
+                  value,
+                  style: const TextStyle(fontSize: 24),
+                  textAlign: TextAlign.center,
                 ),
-                offset: const Offset(0, -324), // bottomMargin como offset negativo
+              );
+            }).toList(),
+            value: widget.selectedFrequency,
+            onChanged: (String? newValue) {
+              print("Dropdown Frequência: Selecionado $newValue");
+              widget.onChanged(newValue);
+            },
+            onMenuStateChange: (isOpen) async {
+              print("Dropdown Frequência: Menu ${isOpen ? 'aberto' : 'fechado'}");
+              if (isOpen) {
+                print("onMenuStateChange: Frequência - Ajustando rolagem dinâmica");
+                await Future.delayed(const Duration(milliseconds: 50));
+                try {
+                  final box = widget.keyTag.currentContext!.findRenderObject() as RenderBox;
+                  final position = box.localToGlobal(Offset.zero);
+                  final screenHeight = MediaQuery.of(context).size.height;
+                  const bottomMargin = 310.0;
+
+                  final distanceToBottom = screenHeight - position.dy;
+                  if (distanceToBottom < bottomMargin) {
+                    final scrollOffset = bottomMargin - distanceToBottom;
+                    final newOffset = widget.scrollController.offset + scrollOffset;
+                    await widget.scrollController.animateTo(
+                      newOffset,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                    print("Rolagem ajustada em $scrollOffset pixels para Frequência");
+                  }
+                } catch (e) {
+                  print("Erro ao ajustar rolagem dinâmica para Frequência: $e");
+                  widget.scrollToField(widget.keyTag);
+                }
+              }
+            },
+            dropdownStyleData: DropdownStyleData(
+              maxHeight: 300,
+              width: MediaQuery.of(context).size.width - 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4.0),
+                color: Colors.grey[200],
               ),
-              buttonStyleData: const ButtonStyleData(
-                height: 50,
-                padding: EdgeInsets.symmetric(horizontal: 12.0),
-              ),
-              iconStyleData: const IconStyleData(
-                icon: Icon(
-                  Icons.arrow_drop_down,
-                  color: Color.fromRGBO(0, 85, 128, 1),
-                  size: 30,
-                ),
+              offset: const Offset(-15, -5),
+            ),
+            buttonStyleData: const ButtonStyleData(
+              height: 73,
+              padding: EdgeInsets.symmetric(horizontal: 12.0),
+            ),
+            iconStyleData: const IconStyleData(
+              icon: Icon(
+                Icons.arrow_drop_down,
+                color: Color.fromRGBO(0, 85, 128, 1),
+                size: 30,
               ),
             ),
           ),
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 
   TextStyle _getLabelStyle() {
@@ -1137,7 +1344,7 @@ class FrequencyDropdownState extends State<FrequencyDropdown> {
   BoxDecoration _getDropdownDecoration({required bool hasFocus}) {
     print("getDropdownDecoration (Frequency): hasFocus=$hasFocus");
     return BoxDecoration(
-      color: Colors.grey[200], // Fundo fixo
+      color: Colors.grey[200],
       border: Border.all(
         color: hasFocus ? const Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
         width: hasFocus ? 5.0 : 1.0,
