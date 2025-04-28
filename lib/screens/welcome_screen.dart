@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart'; // Vamos criar esse arquivo depois
+import 'package:sqflite/sqflite.dart';
 
 class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
+
+  final Database database;
+
+  const WelcomeScreen({super.key, required this.database});
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +62,7 @@ class WelcomeScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    MaterialPageRoute(builder: (context) => HomeScreen(database: database)),
                   );
                 },
                 style: ElevatedButton.styleFrom(

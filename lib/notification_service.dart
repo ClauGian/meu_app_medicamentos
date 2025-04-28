@@ -6,6 +6,7 @@ import 'package:timezone/data/latest.dart' as tz;
 class NotificationService {
   static final NotificationService _notificationService = NotificationService._internal();
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
+  Database? _database; // Adicionado aqui
 
   factory NotificationService() {
     return _notificationService;
@@ -13,7 +14,9 @@ class NotificationService {
 
   NotificationService._internal();
 
-  Future<void> init() async {
+  Future<void> init(Database db) async { // Modificado para aceitar Database db
+    _database = db; // Adicionado aqui
+
     // Inicializar o timezone
     tz.initializeTimeZones();
 
@@ -27,10 +30,9 @@ class NotificationService {
     await _notificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
-        if (response.payload != null) {
+        if (response.payload != null && _database != null) { // Usando _database
           // Buscar o medicamento no banco
-          final database = await openDatabase('medications.db');
-          final medication = await database.query(
+          final medication = await _database!.query(
             'medications',
             where: 'id = ?',
             whereArgs: [response.payload],
@@ -86,7 +88,7 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
-    required String sound,
+    String? sound,
     required String payload,
     required DateTime scheduledTime,
   }) async {
@@ -95,7 +97,7 @@ class NotificationService {
       'Lembrete de Medicamento',
       importance: Importance.high,
       priority: Priority.high,
-      sound: RawResourceAndroidNotificationSound(sound),
+      sound: sound != null ? RawResourceAndroidNotificationSound(sound) : null,
     );
 
     final notificationDetails = NotificationDetails(

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
-import 'dart:io'; // Para File
-import 'medication_registration_screen.dart'; // Se já estiver lá
+import 'dart:io';
+import 'medication_registration_screen.dart';
 import 'home_screen.dart';
+import 'package:intl/intl.dart';
 
 class MedicationListScreen extends StatefulWidget {
-  final Database database; // Adiciona o parâmetro database
+  final Database database;
 
-  const MedicationListScreen({super.key, required this.database}); // Construtor com database
+  const MedicationListScreen({super.key, required this.database});
 
   @override
   State<MedicationListScreen> createState() => _MedicationListScreenState();
@@ -44,7 +45,7 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
             onPressed: () async {
               await widget.database.delete('medications', where: 'id = ?', whereArgs: [id]);
               Navigator.pop(context);
-              _loadMedications(); // Atualiza a lista após exclusão
+              _loadMedications();
             },
             child: const Text("Excluir", style: TextStyle(fontSize: 20, color: Colors.red)),
           ),
@@ -75,6 +76,71 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
     );
   }
 
+  void _showReporQuantidadeDialog(dynamic id) {
+    TextEditingController _quantidadeController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          title: const Text(
+            'Repor Quantidade',
+            style: TextStyle(color: Color.fromRGBO(0, 105, 148, 1)),
+          ),
+          content: TextField(
+            controller: _quantidadeController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Quantos adquiriu',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancelar', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color.fromRGBO(85, 170, 85, 1),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Salvar'),
+              onPressed: () {
+                String novaQuantidade = _quantidadeController.text;
+                if (novaQuantidade.isNotEmpty) {
+                  _reporQuantidade(id, int.parse(novaQuantidade));
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _reporQuantidade(dynamic id, int novaQuantidade) async {
+    final List<Map<String, dynamic>> result = await widget.database.query(
+      'medications',
+      columns: ['quantidade'],
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    int quantidadeAtual = result.isNotEmpty ? (result[0]['quantidade'] as int? ?? 0) : 0;
+    int quantidadeTotal = quantidadeAtual + novaQuantidade;
+    await widget.database.update(
+      'medications',
+      {'quantidade': quantidadeTotal},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    _loadMedications();
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -83,7 +149,7 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
         if (!didPop) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
+            MaterialPageRoute(builder: (context) => HomeScreen(database: widget.database)),
             (route) => false,
           );
         }
@@ -91,17 +157,17 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFFCCCCCC),
         appBar: AppBar(
-          toolbarHeight: 100.0, // Altura para acomodar o espaço e os dois textos
+          toolbarHeight: 100.0,
           backgroundColor: const Color(0xFFCCCCCC),
           title: const Padding(
-            padding: EdgeInsets.only(top: 20.0), // Espaço acima do título
+            padding: EdgeInsets.only(top: 20.0),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center, // Centraliza verticalmente
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   "Medicamentos",
                   style: TextStyle(
-                    color: Color.fromRGBO(0, 105, 148, 1), // Azul escuro
+                    color: Color.fromRGBO(0, 105, 148, 1),
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
@@ -109,7 +175,7 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
                 Text(
                   "Cadastrados",
                   style: TextStyle(
-                    color: Color.fromRGBO(85, 170, 85, 1), // Verde
+                    color: Color.fromRGBO(85, 170, 85, 1),
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
@@ -117,9 +183,9 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
               ],
             ),
           ),
-          centerTitle: true, // Centraliza horizontalmente o título
+          centerTitle: true,
           leading: Padding(
-            padding: const EdgeInsets.only(top: 20.0), // Espaço acima da seta
+            padding: const EdgeInsets.only(top: 20.0),
             child: IconButton(
               icon: const Icon(
                 Icons.arrow_back,
@@ -129,7 +195,7 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
               onPressed: () {
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  MaterialPageRoute(builder: (context) => HomeScreen(database: widget.database)),
                   (route) => false,
                 );
               },
@@ -141,119 +207,409 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
               ? const Center(
                   child: Text(
                     "Nenhum medicamento cadastrado.",
-                    style: TextStyle(fontSize: 20),
+                    style: TextStyle(fontSize: 20, color: Colors.blue, fontWeight: FontWeight.bold),
                   ),
                 )
               : Padding(
-                  padding: const EdgeInsets.only(top: 30.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 16.0),
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16.0),
                     itemCount: _medications.length,
                     itemBuilder: (context, index) {
                       final med = _medications[index];
-                      final imagePath = med['imagePath'] as String?;
+                      final imagePath = med['foto_embalagem'] as String?;
                       return Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
+                        margin: const EdgeInsets.symmetric(vertical: 8.0),
+                        elevation: 0,
+                        child: ClipRect(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(width: 2.0, color: Colors.black),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  height: 50.0,
+                                  padding: EdgeInsets.zero,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[400],
+                                    border: Border(
+                                      bottom: BorderSide(width: 2.0, color: Colors.black),
+                                    ),
+                                  ),
+                                  child: Center(
                                     child: Text(
-                                      med['name'],
-                                      style: const TextStyle(
-                                        fontSize: 24,
+                                      med['nome']?.toString() ?? 'Nome não informado',
+                                      style: TextStyle(
+                                        fontSize: 30,
+                                        color: Colors.blue[900],
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
-                                  Row(
+                                ),
+                                const SizedBox.shrink(),
+                                ConstrainedBox(
+                                  constraints: BoxConstraints.tightFor(
+                                    width: MediaQuery.of(context).size.width - 8.0,
+                                  ),
+                                  child: DataTable(
+                                    columnSpacing: 4.0,
+                                    dividerThickness: 1.0,
+                                    dataRowMinHeight: 48.0,
+                                    dataRowMaxHeight: 48.0,
+                                    decoration: const BoxDecoration(),
+                                    horizontalMargin: 0,
+                                    columns: const [
+                                      DataColumn(label: Text('')),
+                                      DataColumn(
+                                        label: SizedBox(
+                                          width: 140.0,
+                                          child: Text(''),
+                                        ),
+                                      ),
+                                    ],
+                                    rows: [
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Quantidade:',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Center(
+                                            child: SizedBox(
+                                              width: 140.0,
+                                              child: Text(
+                                                med['quantidade']?.toString() ?? '0',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  color: Colors.blue[900],
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                                softWrap: true,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ]),
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Tipo:',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Center(
+                                            child: SizedBox(
+                                              width: 140.0,
+                                              child: Text(
+                                                med['tipo_medicamento']?.toString() ?? 'Não especificado',
+                                                style: TextStyle(fontSize: 16, color: Colors.blue[900]),
+                                                softWrap: true,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ]),
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Dosagem ao dia:',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Center(
+                                            child: SizedBox(
+                                              width: 140.0,
+                                              child: Text(
+                                                med['dosagem_diaria']?.toString() ?? 'Não informada',
+                                                style: TextStyle(fontSize: 16, color: Colors.blue[900]),
+                                                softWrap: true,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ]),
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Modo de usar',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Center(
+                                            child: SizedBox(
+                                              width: 140.0,
+                                              child: Text(
+                                                med['frequencia']?.toString() ?? 'Não informado',
+                                                style: TextStyle(fontSize: 16, color: Colors.blue[900]),
+                                                softWrap: true,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ]),
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Horários:',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Center(
+                                            child: Container(
+                                              width: 140.0,
+                                              alignment: Alignment.center,
+                                              child: Text(
+                                                med['horarios']?.toString() ?? 'Não informado',
+                                                style: TextStyle(fontSize: 14, color: Colors.blue[900]),
+                                                softWrap: true,
+                                                maxLines: null,
+                                                textAlign: TextAlign.center,
+                                                overflow: TextOverflow.visible,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ]),
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Início:',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Center(
+                                            child: SizedBox(
+                                              width: 140.0,
+                                              child: Text(
+                                                med['startDate'] != null
+                                                    ? DateFormat('dd/MM/yyyy')
+                                                        .format(DateFormat('yyyy-MM-dd').parse(med['startDate']))
+                                                    : 'Não informado',
+                                                style: TextStyle(fontSize: 16, color: Colors.blue[900]),
+                                                softWrap: true,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ]),
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Contínuo:',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          Center(
+                                            child: SizedBox(
+                                              width: 140.0,
+                                              child: Text(
+                                                med['isContinuous'] == 1 ? 'Sim' : 'Não',
+                                                style: TextStyle(fontSize: 16, color: Colors.blue[900]),
+                                                softWrap: true,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ]),
+                                      DataRow(cells: [
+                                        DataCell(
+                                          Container(
+                                            width: 160.0,
+                                            padding: const EdgeInsets.only(left: 4.0),
+                                            child: Text(
+                                              'Foto:',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: Colors.blue[900],
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                              softWrap: true,
+                                              textAlign: TextAlign.left,
+                                            ),
+                                          ),
+                                        ),
+                                        DataCell(
+                                          imagePath != null && imagePath.isNotEmpty && File(imagePath).existsSync()
+                                              ? GestureDetector(
+                                                  onTap: () => _showImageDialog(context, imagePath),
+                                                  child: Center(
+                                                    child: Image.file(
+                                                      File(imagePath),
+                                                      width: 50,
+                                                      height: 50,
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  ),
+                                                )
+                                              : const Center(
+                                                  child: Icon(
+                                                    Icons.image_not_supported,
+                                                    size: 50,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                        ),
+                                      ]),
+                                    ],
+                                    headingRowHeight: 0,
+                                    dataRowColor: WidgetStateProperty.all(Colors.transparent),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                                  child: Column(
                                     children: [
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.edit,
-                                          color: Color.fromRGBO(0, 105, 148, 1),
-                                          size: 40,
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                        children: [
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
+                                              foregroundColor: Colors.white,
+                                              minimumSize: const Size(120, 50),
+                                            ),
+                                            onPressed: () {
+                                              final adjustedMed = Map<String, dynamic>.from(med);
+                                              adjustedMed['id'] = med['id']?.toString();
+                                              adjustedMed['quantidade'] = med['quantidade']?.toString();
+                                              adjustedMed['dosagem_diaria'] = med['dosagem_diaria']?.toString();
+                                              adjustedMed['frequencia'] = med['frequencia']?.toString();
+                                              adjustedMed['isContinuous'] = med['isContinuous']?.toString();
+                                              adjustedMed['horarios'] = med['horarios']?.toString() ?? '';
+                                     
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => MedicationRegistrationScreen(
+                                                    database: widget.database,
+                                                    medication: adjustedMed,
+                                                  ),
+                                                ),
+                                              ).then((_) => _loadMedications());
+                                            },
+                                            child: const Text('Alterar', style: TextStyle(fontSize: 16)),
+                                          ),
+                                          ElevatedButton(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.red,
+                                              foregroundColor: Colors.white,
+                                              minimumSize: const Size(120, 50),
+                                            ),
+                                            onPressed: () => _confirmDelete(context, med['id'], med['nome']?.toString() ?? ''),
+                                            child: const Text('Excluir', style: TextStyle(fontSize: 16)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8.0),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color.fromRGBO(85, 170, 85, 1),
+                                          foregroundColor: Colors.white,
+                                          minimumSize: const Size(180, 50),
                                         ),
                                         onPressed: () {
-                                          Navigator.pop(context);
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  MedicationRegistrationScreen(
-                                                      medication: med),
-                                            ),
-                                          );
+                                          _showReporQuantidadeDialog(med['id']);
                                         },
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.delete,
-                                          color: Colors.red,
-                                          size: 50,
+                                        child: const Text(
+                                          'Repor Quantidade',
+                                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                         ),
-                                        onPressed: () => _confirmDelete(
-                                            context, med['id'], med['name']),
                                       ),
                                     ],
                                   ),
-                                ],
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    "Quantidade Total: ${med['stock']}",
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                  Text(
-                                    "Tipo: ${med['type']}",
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                  Text(
-                                    "Dosagem: ${med['dosage']}",
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                  Text(
-                                    "Modo de Usar: ${med['frequency']} x por dia",
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                  Text(
-                                    "Horários: ${med['times']}",
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                  Text(
-                                    "Início: ${med['startDate']}",
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                  Text(
-                                    "Contínuo: ${med['isContinuous'] == 1 ? 'Sim' : 'Não'}",
-                                    style: const TextStyle(fontSize: 18),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              imagePath != null && File(imagePath).existsSync()
-                                  ? GestureDetector(
-                                      onTap: () =>
-                                          _showImageDialog(context, imagePath),
-                                      child: Image.file(
-                                        File(imagePath),
-                                        width: 50,
-                                        height: 50,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.image_not_supported,
-                                      size: 50,
-                                      color: Colors.grey,
-                                    ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );

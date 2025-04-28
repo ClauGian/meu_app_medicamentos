@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
 import 'dart:io';
 import '../notification_service.dart'; // Importar o NotificationService
@@ -199,8 +198,8 @@ class _MedicationAlertScreenState extends State<MedicationAlertScreen> {
           sound: 'alarm',
           payload: '',
         );
-        // TODO: Implementar notificação ao cuidador via Firebase
-        // Exemplo: await FirebaseFirestore.instance.collection('notifications').add({...});
+        //TODO: Implementar notificação ao cuidador via Firebase
+        //Exemplo: await FirebaseFirestore.instance.collection('notifications').add({...});
       }
     }
 
