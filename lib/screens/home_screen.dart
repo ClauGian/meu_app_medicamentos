@@ -6,6 +6,8 @@ import 'user_registration_screen.dart';
 import 'caregiver_registration_screen.dart';
 import 'instructions_screen.dart';
 import 'daily_alerts_screen.dart';
+import 'alert_sound_selection_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   final Database database;
@@ -67,7 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView(
             padding: const EdgeInsets.only(left: 16.0),
             children: [
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
               Container(
                 height: 80,
                 decoration: const BoxDecoration(
@@ -98,7 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
+
               ListTile(
                 title: const Text(
                   'Meu Cadastro',
@@ -116,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const Divider(color: Colors.grey),
+
               ListTile(
                 title: const Text(
                   'Cadastrar Cuidador',
@@ -133,6 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const Divider(color: Colors.grey),
+
               ListTile(
                 title: const Text(
                   'Cadastrar Medicamentos',
@@ -150,6 +155,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const Divider(color: Colors.grey),
+
+              ListTile(
+                title: const Text(
+                  'Cadastrar Alertas',
+                  style: TextStyle(
+                    color: Color.fromRGBO(0, 85, 128, 1),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AlertSoundSelectionScreen()),
+                  );
+                },
+              ),
+              const Divider(color: Colors.grey),
+
               ListTile(
                 title: const Text(
                   'Lista de Medicamentos',
@@ -167,9 +191,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const Divider(color: Colors.grey),
+
               ListTile(
                 title: const Text(
-                  'Alertas',
+                  'Alertas do Dia',
                   style: TextStyle(
                     color: Color.fromRGBO(0, 85, 128, 1),
                     fontSize: 24,
@@ -230,13 +255,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 50),
-              const Text(
-                'O seu assistente para lhe ajudar com sua medicação.',
+              RichText(
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Color.fromRGBO(0, 105, 148, 1),
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                text: TextSpan(
+                  style: const TextStyle(
+                    color: Color.fromRGBO(0, 105, 148, 1),
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  children: [
+                    const TextSpan(text: 'Acesse o menu acima  '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Icon(Icons.menu, size: 32, color: Color.fromRGBO(85, 170, 85, 1)),
+                    ),
+                    const TextSpan(text: '  e comece a usar seu assistente para cuidar das suas medicações.'),
+                  ],
                 ),
               ),
               const SizedBox(height: 100),
@@ -254,8 +288,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Text(
                   'Guia do App',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Color.fromRGBO(85, 170, 85, 1),
                     fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),

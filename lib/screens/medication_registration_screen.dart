@@ -488,7 +488,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   }
 
   Future<void> _pickImage() async {
-    final XFile? pickedImage = await _picker.pickImage(source: ImageSource.camera);
+    final XFile? pickedImage = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 50, // Reduz a qualidade para 50% (0 a 100)
+    );
     if (pickedImage != null) {
       setState(() {
         _image = File(pickedImage.path);
