@@ -15,12 +15,6 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
   String? selectedSound;
   bool _isPlaying = false;
 
-  @override
-  void dispose() {
-    audioPlayer.dispose();
-    super.dispose();
-  }
-
   Future<void> _togglePlayStop() async {
     if (_isPlaying) {
       await audioPlayer.stop();
@@ -29,10 +23,18 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
       });
     } else {
       if (selectedSound != null) {
-        await audioPlayer.play(AssetSource('sounds/$selectedSound'));
-        setState(() {
-          _isPlaying = true;
-        });
+        await audioPlayer.stop(); // Garante que qualquer áudio anterior seja parado
+        try {
+          await audioPlayer.play(AssetSource('sounds/$selectedSound'));
+          setState(() {
+            _isPlaying = true;
+          });
+        } catch (e) {
+          print('Erro ao reproduzir áudio: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Erro ao reproduzir o som.')),
+          );
+        }
         audioPlayer.onPlayerComplete.listen((event) {
           setState(() {
             _isPlaying = false;
@@ -46,6 +48,13 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    audioPlayer.stop();
+    audioPlayer.dispose();
+    super.dispose();
+  }
+
   void _saveSound() {
     if (selectedSound == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -56,35 +65,43 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
 
     // TODO: Salvar no banco ou SharedPreferences
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Som "$selectedSound" salvo com sucesso!')),
+      SnackBar(
+        content: Text('Som "$selectedSound" salvo com sucesso!'),
+        duration: const Duration(seconds: 2),
+      ),
     );
-    Navigator.pop(context);
+
+    // Atrasar o pop para garantir que o SnackBar seja exibido
+    Future.delayed(const Duration(seconds: 3), () {
+      Navigator.pop(context);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Removido log do renderingBackend (não disponível nesta versão)
     return Scaffold(
       backgroundColor: const Color(0xFFCCCCCC),
       appBar: AppBar(
         backgroundColor: const Color(0xFFCCCCCC),
         elevation: 0,
         centerTitle: true,
-        toolbarHeight: 90,
+        toolbarHeight: 100,
         title: const Column(
           children: [
             Text(
               "Selecionar",
               style: TextStyle(
                 color: Color.fromRGBO(0, 105, 148, 1),
-                fontSize: 32,
+                fontSize: 36,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
-              "Som do Alerta",
+              "Alerta",
               style: TextStyle(
                 color: Color.fromRGBO(85, 170, 85, 1),
-                fontSize: 32,
+                fontSize: 36,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -92,15 +109,16 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Toque em uma opção para selecionar o som do alerta:',
+              'Selecione o som:',
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color.fromRGBO(0, 105, 148, 1),
-                fontSize: 20,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -108,7 +126,7 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
             Expanded(
               child: ListView.separated(
                 itemCount: sounds.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final sound = sounds[index];
                   final isSelected = sound == selectedSound;
@@ -121,9 +139,10 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
                       });
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      height: 50,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFE0F7E9) : Colors.white,
+                        color: isSelected ? const Color.fromARGB(255, 126, 247, 172) : const Color.fromARGB(255, 250, 215, 215),
                         border: Border.all(
                           color: isSelected ? const Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
                           width: 2,
@@ -132,27 +151,66 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
                       ),
                       child: Text(
                         sound.replaceAll('.mp3', ''),
-                        style: const TextStyle(fontSize: 18),
+                        style: const TextStyle(fontSize: 20),
                       ),
                     ),
                   );
                 },
+                cacheExtent: 1000.0, // Aumenta o cache para melhorar rolagem
               ),
             ),
-            const SizedBox(height: 20),
             Center(
-              child: ElevatedButton.icon(
-                onPressed: _togglePlayStop,
-                icon: Icon(_isPlaying ? Icons.stop : Icons.play_arrow),
-                label: Text(_isPlaying ? 'Parar' : 'Ouvir som selecionado'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), // Reduz padding vertical para menor altura
+                width: 300, // Aumenta a largura (ajuste conforme necessário)
+                decoration: BoxDecoration(
+                  color: const Color.fromARGB(255, 131, 246, 175), // Verde claro como background
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color.fromARGB(255, 102, 102, 102).withValues(alpha: 0.3),
+                      spreadRadius: 2,
+                      blurRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        _isPlaying ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                        color: const Color.fromRGBO(0, 105, 148, 1),
+                        size: 60,
+                      ),
+                      onPressed: _togglePlayStop,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      selectedSound?.replaceAll('.mp3', '') ?? 'Reproduzir',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        color: Color.fromRGBO(0, 105, 148, 1),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Teste de SnackBar'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+                child: const Text('Testar SnackBar'),
+              ),
+            ),
             Center(
               child: ElevatedButton(
                 onPressed: _saveSound,
