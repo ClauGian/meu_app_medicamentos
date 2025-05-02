@@ -25,8 +25,7 @@ android {
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
-        versionName = flutter.versionName
-        manifestPlaceholders.put("enableImpeller", "false")
+        versionName = flutter.versionName        
     }
 
     buildTypes {

@@ -1,12 +1,15 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
+import 'screens/medication_alert_screen.dart'; // Importa da subpasta screens/
 
 class NotificationService {
   static final NotificationService _notificationService = NotificationService._internal();
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
-  Database? _database; // Adicionado aqui
+  Database? _database;
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Chave para navegação
 
   factory NotificationService() {
     return _notificationService;
@@ -14,10 +17,9 @@ class NotificationService {
 
   NotificationService._internal();
 
-  Future<void> init(Database db) async { // Modificado para aceitar Database db
-    _database = db; // Adicionado aqui
+  Future<void> init(Database db) async {
+    _database = db;
 
-    // Inicializar o timezone
     tz.initializeTimeZones();
 
     const AndroidInitializationSettings initializationSettingsAndroid =
@@ -30,8 +32,7 @@ class NotificationService {
     await _notificationsPlugin.initialize(
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
-        if (response.payload != null && _database != null) { // Usando _database
-          // Buscar o medicamento no banco
+        if (response.payload != null && _database != null) {
           final medication = await _database!.query(
             'medications',
             where: 'id = ?',
@@ -48,12 +49,28 @@ class NotificationService {
             final horarioIndex = notificationId % horarios.length;
             final horario = horarios[horarioIndex];
 
-            // TODO: Navegar para MedicationAlertScreen
-            // Implementaremos isso no próximo passo
+            // Navegar para MedicationAlertScreen
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (context) => MedicationAlertScreen(
+                  medicationId: response.payload!,
+                  nome: nome,
+                  dose: dosePorAlarme.toString(),
+                  fotoPath: fotoPath,
+                  horario: horario,
+                  database: _database!,
+                ),
+              ),
+            );
           }
         }
       },
     );
+    final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      bool? granted = await androidPlugin.requestNotificationsPermission();
+      print('Permissão de notificação concedida: $granted');
+    }
   }
 
   Future<void> showNotification({

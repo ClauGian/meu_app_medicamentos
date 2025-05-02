@@ -55,25 +55,25 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context) => Padding(
             padding: const EdgeInsets.only(top: 10.0, left: 16.0),
             child: IconButton(
-              icon: const Icon(Icons.menu, size: 42),
-              color: const Color.fromRGBO(0, 105, 148, 1),
+              icon: const Icon(Icons.menu, size: 50),
+              color: const Color.fromRGBO(0, 0, 0, 1),
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
           ),
         ),
       ),
       drawer: Drawer(
-        backgroundColor: const Color(0xFFE5E5E5),
+        backgroundColor: const Color.fromARGB(255, 217, 242, 217),
         child: Padding(
           padding: const EdgeInsets.only(top: 20.0),
           child: ListView(
-            padding: const EdgeInsets.only(left: 16.0),
+            padding: const EdgeInsets.only(left: 8.0),
             children: [
               const SizedBox(height: 24),
               Container(
-                height: 80,
+                height: 70,
                 decoration: const BoxDecoration(
-                  color: Color.fromRGBO(0, 105, 148, 1),
+                  color: Color.fromRGBO(255, 217, 242, 217),
                 ),
                 child: Center(
                   child: RichText(
@@ -82,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         TextSpan(
                           text: 'Medi',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color.fromRGBO(0, 105, 148, 1),
                             fontSize: 40,
                             fontWeight: FontWeight.bold,
                           ),
@@ -267,7 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const TextSpan(text: 'Acesse o menu acima  '),
                     WidgetSpan(
                       alignment: PlaceholderAlignment.middle,
-                      child: Icon(Icons.menu, size: 32, color: Color.fromRGBO(85, 170, 85, 1)),
+                      child: Icon(Icons.menu, size: 40, color: Colors.black),
                     ),
                     const TextSpan(text: '  e comece a usar seu assistente para cuidar das suas medicações.'),
                   ],

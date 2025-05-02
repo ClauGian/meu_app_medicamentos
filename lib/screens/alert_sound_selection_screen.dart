@@ -198,19 +198,7 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Teste de SnackBar'),
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
-                },
-                child: const Text('Testar SnackBar'),
-              ),
-            ),
+            
             Center(
               child: ElevatedButton(
                 onPressed: _saveSound,
