@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart'; // Vamos criar esse arquivo depois
 import 'package:sqflite/sqflite.dart';
 import 'package:medialerta/notification_service.dart';
+import '../notification_service.dart';
 
 class WelcomeScreen extends StatelessWidget {
   final Database database;
@@ -88,21 +89,37 @@ class WelcomeScreen extends StatelessWidget {
                     }
                     final medicationId = medications[0]['id'].toString();
                     
-                    // Agenda a notificação com o ID do medicamento
-                    await NotificationService().scheduleNotification(
-                      id: 1,
-                      title: 'Hora do Medicamento',
-                      body: 'Medicamentos às 08:00',
-                      sound: null,
+                    // Gera um ID único baseado no timestamp
+                    final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
+                    
+                    // Cancela todas as notificações pendentes
+                    await NotificationService().cancelAllNotifications();
+                    
+                    // Testa showNotification (imediata)
+                    await NotificationService().showNotification(
+                      id: notificationId,
+                      title: 'Teste Imediato',
+                      body: 'Notificação imediata',
+                      sound: 'alarm',
                       payload: medicationId,
-                      scheduledTime: DateTime.now().add(Duration(seconds: 5)),
                     );
+                    
+                    // Agenda uma notificação para 60 segundos
+                    await notificationService.scheduleWorkmanagerNotification(
+                      id: 2468,
+                      title: 'Teste Agendado',
+                      body: 'Esta é uma notificação agendada',
+                      payload: '1',
+                      scheduledTime: DateTime.now().add(Duration(seconds: 60)),
+                      database: database,
+                    );
+                    
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Notificação agendada para 5 segundos!')),
+                      SnackBar(content: Text('Teste iniciado: notificação imediata + agendada (10s)!')),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Erro ao agendar notificação: $e')),
+                      SnackBar(content: Text('Erro: $e')),
                     );
                   }
                 },
@@ -114,7 +131,7 @@ class WelcomeScreen extends StatelessWidget {
                   "Testar Notificação",
                   style: TextStyle(fontSize: 24, color: Colors.white),
                 ),
-              ),
+              )
             ],
           ),
         ),

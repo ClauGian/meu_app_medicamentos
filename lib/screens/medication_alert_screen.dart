@@ -103,30 +103,42 @@ class _MedicationAlertScreenState extends State<MedicationAlertScreen> {
       whereArgs: [widget.medicationId],
     );
     if (medication.isNotEmpty) {
-      final quantidadeTotal = medication[0]['quantidade_total'] as int;
-      final dosagemDiaria = medication[0]['dosagem_diaria'] as int;
+      print('DEBUG: Dados do medicamento: $medication'); // Linha de debug
+      final quantidadeTotal = medication[0]['quantidade'];
+      final dosagemDiaria = medication[0]['dosagem_diaria'];
       final horarios = (medication[0]['horarios'] as String).split(',');
-      final dosePorAlarme = dosagemDiaria / horarios.length;
 
-      final novaQuantidade = quantidadeTotal - dosePorAlarme;
-      await widget.database.update(
-        'medications',
-        {'quantidade_total': novaQuantidade},
-        where: 'id = ?',
-        whereArgs: [widget.medicationId],
-      );
+      try {
+        final int quantidade = quantidadeTotal as int;
+        final int dosagem = dosagemDiaria as int;
 
-      if (novaQuantidade <= dosagemDiaria * 2) {
-        await notificationService.showNotification(
-          id: 999,
-          title: 'Estoque Baixo',
-          body: 'Restam poucos comprimidos de ${widget.nome}. Reabasteça!',
-          sound: 'alarm',
-          payload: '',
+        final dosePorAlarme = dosagem ~/ horarios.length;
+        final novaQuantidade = quantidade - dosePorAlarme;
+
+        await widget.database.update(
+          'medications',
+          {'quantidade': novaQuantidade},
+          where: 'id = ?',
+          whereArgs: [widget.medicationId],
         );
+        print('DEBUG: Nova quantidade após atualização: $novaQuantidade');
+
+        if (novaQuantidade <= dosagem * 2) {
+          await notificationService.showNotification(
+            id: 999,
+            title: 'Estoque Baixo',
+            body: 'Restam poucos comprimidos de ${widget.nome}. Reabasteça!',
+            sound: 'alarm',
+            payload: '',
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro: Dados do medicamento incompletos ($e)')),
+        );
+        return;
       }
     }
-
     Navigator.pop(context);
   }
 

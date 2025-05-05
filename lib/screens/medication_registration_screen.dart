@@ -51,8 +51,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   String? _type;
   String? _frequency;
   bool _isContinuous = false;
-  File? _image;
-  bool _showPhotoOption = false;
+  File? _image;  
   final ImagePicker _picker = ImagePicker();
 
   int _getDoseCount(String? frequency) {
