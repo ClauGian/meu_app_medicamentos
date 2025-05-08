@@ -56,7 +56,7 @@ class DailyAlertsScreen extends StatelessWidget {
               final medicamentos = entry.value;
 
               return Container(
-                margin: const EdgeInsets.only(bottom: 16),
+                margin: const EdgeInsets.only(bottom: 30),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.black45),
                   borderRadius: BorderRadius.circular(8),
@@ -92,11 +92,8 @@ class DailyAlertsScreen extends StatelessWidget {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => MedicationAlertScreen(
-                                  medicationId: id,
-                                  nome: nome,
-                                  dose: '$doseFormatada comprimido(s)',
-                                  fotoPath: fotoPath,
                                   horario: horario,
+                                  medicationIds: [id], // Passa uma lista com o ID único
                                   database: database,
                                 ),
                               ),
@@ -105,7 +102,7 @@ class DailyAlertsScreen extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Text(
-                              '• $nome – $doseFormatada comprimido(s)',
+                              '• $nome  –  $doseFormatada  comprimido(s)',
                               style: const TextStyle(
                                 fontSize: 18,
                                 color: Color.fromRGBO(0, 105, 148, 1), // Azul escuro

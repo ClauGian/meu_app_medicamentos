@@ -114,7 +114,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const UserRegistrationScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => UserRegistrationScreen(database: widget.database),
+                    ),
                   );
                 },
               ),
@@ -132,7 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const CaregiverRegistrationScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => CaregiverRegistrationScreen(database: widget.database),
+                    ),
                   );
                 },
               ),

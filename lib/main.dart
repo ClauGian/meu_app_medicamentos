@@ -3,35 +3,16 @@ import 'screens/welcome_screen.dart';
 import 'notification_service.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
-import 'package:workmanager/workmanager.dart';
-
-// Função de callback do Workmanager (adicionada fora de qualquer classe)
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    print('DEBUG: Executando tarefa Workmanager: $task');
-    final notificationService = NotificationService();
-    await notificationService.init(inputData!['database'] as Database);
-    await notificationService.showNotification(
-      id: inputData['id'] as int,
-      title: inputData['title'] as String,
-      body: inputData['body'] as String,
-      sound: 'alarm',
-      payload: inputData['payload'] as String,
-    );
-    return Future.value(true);
-  });
-}
 
 Future<Database> _initDatabase() async {
   final dbPath = await getDatabasesPath();
   final pathName = path.join(dbPath, 'medications.db');
   final database = await openDatabase(
     pathName,
-    version: 2,
+    version: 3, // Incrementado para suportar a nova coluna 'date'
     onCreate: (db, version) async {
       await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
-      await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)');
+      await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, date TEXT)');
       await db.execute('CREATE TABLE IF NOT EXISTS caregivers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)');
       print("DEBUG: Criação das tabelas concluída.");
     },
@@ -42,6 +23,10 @@ Future<Database> _initDatabase() async {
         await db.execute('INSERT INTO medications (id, nome, quantidade, dosagem_diaria, tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id) SELECT id, nome, COALESCE(quantidade, 0), COALESCE(dosagem_diaria, 0), tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id FROM medications_old');
         await db.execute('DROP TABLE medications_old');
         print("DEBUG: Migração para versão 2 concluída.");
+      }
+      if (oldVersion < 3) {
+        await db.execute('ALTER TABLE users ADD COLUMN date TEXT');
+        print("DEBUG: Coluna date adicionada à tabela users.");
       }
     },
   );
@@ -56,10 +41,10 @@ Future<Database> _initDatabase() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Inicializar o Workmanager
-  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-  final database = await _initDatabase();
-  await NotificationService().init(database);
+  // Inicializar banco de dados em uma tarefa isolada
+  final database = await Future.microtask(_initDatabase);
+  // Inicializar NotificationService em uma tarefa isolada
+  await Future.microtask(() => NotificationService().init(database));
   print('DEBUG: NotificationService inicializado com sucesso');
   runApp(MyApp(database: database));
 }

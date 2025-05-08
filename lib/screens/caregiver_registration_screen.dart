@@ -1,30 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Para FilteringTextInputFormatter e LengthLimitingTextInputFormatter
-import '../utils/formatters.dart'; // Para PhoneInputFormatter
-
-
+import 'package:sqflite/sqflite.dart';
+import 'package:flutter/services.dart';
+import '../utils/formatters.dart';
 
 class CaregiverRegistrationScreen extends StatefulWidget {
-  const CaregiverRegistrationScreen({super.key});
+  final Database database;
+
+  const CaregiverRegistrationScreen({super.key, required this.database});
 
   @override
-  _CaregiverRegistrationScreenState createState() => _CaregiverRegistrationScreenState();
+  CaregiverRegistrationScreenState createState() => CaregiverRegistrationScreenState();
 }
 
-class _CaregiverRegistrationScreenState extends State<CaregiverRegistrationScreen> {
+class CaregiverRegistrationScreenState extends State<CaregiverRegistrationScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _relationController = TextEditingController();
+  bool _isEditing = false; // Controla se os campos são editáveis
 
   @override
-  void dispose() {
-    _nameController.dispose();
-    _phoneController.dispose();
-    _relationController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadCaregiver(); // Carregar dados do cuidador ao iniciar
+    // Verificar se há cuidador para decidir o estado inicial
+    widget.database.query('caregivers', limit: 1).then((result) {
+      setState(() {
+        _isEditing = result.isEmpty; // Habilitar edição se não houver cuidador
+      });
+      print('DEBUG: Modo de edição inicial: $_isEditing');
+    });
   }
 
-  void _validateAndSave() {
+  Future<void> _loadCaregiver() async {
+    try {
+      final result = await widget.database.query(
+        'caregivers',
+        limit: 1, // Garante que buscamos apenas um cuidador
+      );
+      if (result.isNotEmpty) {
+        final caregiver = result.first;
+        _nameController.text = caregiver['name'] as String? ?? '';
+        _phoneController.text = caregiver['phone'] as String? ?? '';
+        print('DEBUG: Dados do cuidador carregados: $caregiver');
+      } else {
+        print('DEBUG: Nenhum cuidador encontrado.');
+      }
+    } catch (e) {
+      print('DEBUG: Erro ao carregar cuidador: $e');
+    }
+  }
+
+  void _toggleEditing() {
+    setState(() {
+      _isEditing = !_isEditing; // Alternar entre editável e readonly
+    });
+    print('DEBUG: Modo de edição: $_isEditing');
+  }
+
+  void _validateAndSave() async {
+    if (!_isEditing) return; // Impedir salvamento se não estiver em modo de edição
+
     String name = _nameController.text.trim();
     String phone = _phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
 
@@ -52,7 +87,59 @@ class _CaregiverRegistrationScreenState extends State<CaregiverRegistrationScree
       return;
     }
 
-    Navigator.pop(context);
+    try {
+      final existing = await widget.database.query('caregivers', limit: 1);
+      if (existing.isEmpty) {
+        // Inserir novo cuidador
+        int id = await widget.database.insert(
+          'caregivers',
+          {'name': name, 'phone': phone},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        print('DEBUG: Cuidador salvo com ID: $id');
+      } else {
+        // Atualizar cuidador existente
+        await widget.database.update(
+          'caregivers',
+          {'name': name, 'phone': phone},
+          where: 'id = ?',
+          whereArgs: [existing.first['id']],
+        );
+        print('DEBUG: Cuidador atualizado: ID ${existing.first['id']}');
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Cuidador salvo com sucesso!',
+            style: TextStyle(fontSize: 20),
+          ),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      setState(() {
+        _isEditing = false; // Voltar para readonly após salvar
+      });
+      await Future.delayed(const Duration(seconds: 2));
+      Navigator.pop(context);
+    } catch (e) {
+      print('DEBUG: Erro ao salvar cuidador: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Erro ao salvar o cuidador.',
+            style: TextStyle(fontSize: 20),
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _relationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -122,6 +209,7 @@ class _CaregiverRegistrationScreenState extends State<CaregiverRegistrationScree
                 ),
                 style: const TextStyle(fontSize: 24),
                 textCapitalization: TextCapitalization.words,
+                enabled: _isEditing, // Campo editável apenas se _isEditing for true
               ),
               const SizedBox(height: 20),
               TextField(
@@ -143,6 +231,7 @@ class _CaregiverRegistrationScreenState extends State<CaregiverRegistrationScree
                   LengthLimitingTextInputFormatter(11),
                   PhoneInputFormatter(),
                 ],
+                enabled: _isEditing,
               ),
               const SizedBox(height: 20),
               TextField(
@@ -159,6 +248,7 @@ class _CaregiverRegistrationScreenState extends State<CaregiverRegistrationScree
                 ),
                 style: const TextStyle(fontSize: 24),
                 textCapitalization: TextCapitalization.sentences,
+                enabled: _isEditing,
               ),
               const SizedBox(height: 80),
               Row(
@@ -179,14 +269,14 @@ class _CaregiverRegistrationScreenState extends State<CaregiverRegistrationScree
                     ),
                   ),
                   ElevatedButton(
-                    onPressed: _validateAndSave,
+                    onPressed: _isEditing ? _validateAndSave : _toggleEditing,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
                       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
                     ),
-                    child: const Text(
-                      'Salvar',
-                      style: TextStyle(
+                    child: Text(
+                      _isEditing ? 'Salvar' : 'Alterar',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                       ),

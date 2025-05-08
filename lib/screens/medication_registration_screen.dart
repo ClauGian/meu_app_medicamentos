@@ -51,7 +51,8 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   String? _type;
   String? _frequency;
   bool _isContinuous = false;
-  File? _image;  
+  File? _image; 
+  bool _showPhotoOption = false; // ou o valor inicial apropriado 
   final ImagePicker _picker = ImagePicker();
 
   int _getDoseCount(String? frequency) {
@@ -726,6 +727,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           body: 'Dose: ${_dosageController.text} às ${horarios[i]}',
           payload: _nameController.text, // Usar o ID do medicamento seria melhor
           scheduledTime: scheduledTime,
+          sound: 'alarm',
         );
         print("Notificação $i agendada com sucesso");
       }

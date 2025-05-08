@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart'; // Vamos criar esse arquivo depois
+import 'home_screen.dart'; 
 import 'package:sqflite/sqflite.dart';
-import 'package:medialerta/notification_service.dart';
 import '../notification_service.dart';
 
 class WelcomeScreen extends StatelessWidget {
   final Database database;
+  final NotificationService notificationService = NotificationService();
 
-  const WelcomeScreen({super.key, required this.database});
+  WelcomeScreen({super.key, required this.database});
 
   @override
   Widget build(BuildContext context) {
@@ -79,43 +79,60 @@ class WelcomeScreen extends StatelessWidget {
               ElevatedButton(
                 onPressed: () async {
                   try {
-                    // Busca o primeiro medicamento do banco
-                    final medications = await database.query('medications', limit: 1);
+                    // Busca todos os medicamentos com o horário "08:00"
+                    final medications = await database.query(
+                      'medications',
+                      where: 'horarios LIKE ?',
+                      whereArgs: ['%08:00%'],
+                    );
                     if (medications.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Nenhum medicamento cadastrado!')),
+                        SnackBar(content: Text('Nenhum medicamento encontrado para 08:00!')),
                       );
                       return;
                     }
-                    final medicationId = medications[0]['id'].toString();
-                    
+
+                    // Extrai os IDs dos medicamentos
+                    final medicationIds = medications.map((med) => med['id'].toString()).toList();
+                    final payload = medicationIds.join(',');
+
                     // Gera um ID único baseado no timestamp
                     final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
-                    
+
                     // Cancela todas as notificações pendentes
                     await NotificationService().cancelAllNotifications();
-                    
-                    // Testa showNotification (imediata)
-                    await NotificationService().showNotification(
-                      id: notificationId,
-                      title: 'Teste Imediato',
-                      body: 'Notificação imediata',
+
+                    // Testa showNotification (imediata) para o primeiro medicamento
+                    if (medications.isNotEmpty) {
+                      final firstMedicationId = medications[0]['id'].toString();
+                      await NotificationService().showNotification(
+                        id: notificationId,
+                        title: 'Teste Imediato',
+                        body: 'Notificação imediata',
+                        sound: 'alarm',
+                        payload: firstMedicationId,
+                      );
+                    }
+
+                    // Agenda uma única notificação para o horário "08:00"
+                    await notificationService.scheduleNotification(
+                      id: DateTime.now().millisecondsSinceEpoch % 10000,
+                      title: 'Alerta de Medicamento: 08:00',
+                      body: 'Você tem ${medicationIds.length} medicamentos para tomar',
                       sound: 'alarm',
-                      payload: medicationId,
+                      payload: '08:00|$payload', // Formato: "horario|id1,id2,id3"
+                      scheduledTime: DateTime.now().add(Duration(seconds: 30)),
                     );
-                    
-                    // Agenda uma notificação para 60 segundos
-                    await notificationService.scheduleWorkmanagerNotification(
-                      id: 2468,
-                      title: 'Teste Agendado',
-                      body: 'Esta é uma notificação agendada',
-                      payload: '1',
-                      scheduledTime: DateTime.now().add(Duration(seconds: 60)),
-                      database: database,
-                    );
-                    
+
+                    // Verifica notificações pendentes imediatamente após agendamento
+                    final pendingNotifications = await notificationService.getPendingNotifications();
+                    print('DEBUG: Notificações pendentes imediatamente após agendamento: ${pendingNotifications.length}');
+                    for (var notification in pendingNotifications) {
+                      print('DEBUG: Pendente - ID: ${notification.id}, Title: ${notification.title}, Payload: ${notification.payload}');
+                    }
+
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Teste iniciado: notificação imediata + agendada (10s)!')),
+                      SnackBar(content: Text('Teste iniciado: notificação imediata + agendada para 08:00 (30s)!')),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(

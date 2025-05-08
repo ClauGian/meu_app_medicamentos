@@ -4,50 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'screens/medication_alert_screen.dart'; // Importa da subpasta screens/
-import 'package:workmanager/workmanager.dart';
 
-const String taskName = 'medication_notification_task';
-
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    print('DEBUG: Executando tarefa Workmanager: $task');
-    final notificationService = NotificationService();
-    await notificationService.init(inputData!['database'] as Database);
-    await notificationService.showNotification(
-      id: inputData['id'] as int,
-      title: inputData['title'] as String,
-      body: inputData['body'] as String,
-      sound: 'alarm',
-      payload: inputData['payload'] as String,
-    );
-    return Future.value(true);
-  });
-}
-
-Future<void> scheduleWorkmanagerNotification({
-  required int id,
-  required String title,
-  required String body,
-  required String payload,
-  required DateTime scheduledTime,
-  required Database database,
-}) async {
-  await Workmanager().registerOneOffTask(
-    '$id',
-    taskName,
-    inputData: {
-      'id': id,
-      'title': title,
-      'body': body,
-      'payload': payload,
-      'database': database,
-    },
-    initialDelay: scheduledTime.difference(DateTime.now()),
-    existingWorkPolicy: ExistingWorkPolicy.replace,
-  );
-  print('DEBUG: Tarefa Workmanager agendada para $scheduledTime');
-}
 
 class NotificationService {
   static final NotificationService _notificationService = NotificationService._internal();
@@ -81,36 +38,74 @@ class NotificationService {
         onDidReceiveNotificationResponse: (NotificationResponse response) async {
           print('DEBUG: Notificação recebida - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
           if (response.payload != null && _database != null) {
-            final medication = await _database!.query(
-              'medications',
-              where: 'id = ?',
-              whereArgs: [response.payload],
-            );
+            try {
+              print('DEBUG: Processando payload: ${response.payload}');
+              final payloadParts = response.payload!.split('|');
+              if (payloadParts.length >= 2) {
+                // Novo formato: "horario|id1,id2,id3"
+                final horario = payloadParts[0]; // Ex.: "08:00"
+                final medicationIds = payloadParts[1].split(','); // Ex.: ["1", "2", "3"]
+                print('DEBUG: Navegando para MedicationAlertScreen com horario: $horario, medicationIds: $medicationIds');
+                final navigatorState = navigatorKey.currentState;
+                if (navigatorState != null) {
+                  await navigatorState.push(
+                    MaterialPageRoute(
+                      builder: (context) => MedicationAlertScreen(
+                        horario: horario,
+                        medicationIds: medicationIds,
+                        database: _database!,
+                      ),
+                    ),
+                  );
+                  print('DEBUG: Navegação concluída');
+                } else {
+                  print('DEBUG: ERRO: NavigatorState é nulo, navegação não realizada');
+                }
+              } else {
+                // Compatibilidade com payloads antigos (um único ID)
+                print('DEBUG: Payload antigo detectado, consultando medicamento com ID: ${response.payload}');
+                final medication = await _database!.query(
+                  'medications',
+                  where: 'id = ?',
+                  whereArgs: [response.payload],
+                );
 
-            if (medication.isNotEmpty) {
-              final nome = medication[0]['nome'] as String;
-              final dosagemDiaria = medication[0]['dosagem_diaria'] as int;
-              final horarios = (medication[0]['horarios'] as String).split(',');
-              final dosePorAlarme = dosagemDiaria / horarios.length;
-              final fotoPath = medication[0]['foto_embalagem'] as String? ?? '';
-              final notificationId = response.id ?? 0;
-              final horarioIndex = notificationId % horarios.length;
-              final horario = horarios[horarioIndex];
+                if (medication.isNotEmpty) {
+                  print('DEBUG: Medicamento encontrado: $medication');
+                  final nome = medication[0]['nome'] as String;
+                  final dosagemDiaria = medication[0]['dosagem_diaria'] as int;
+                  final horarios = (medication[0]['horarios'] as String).split(',');
+                  final dosePorAlarme = dosagemDiaria / horarios.length;
+                  final fotoPath = medication[0]['foto_embalagem'] as String? ?? '';
+                  final notificationId = response.id ?? 0;
+                  final horarioIndex = notificationId % horarios.length;
+                  final horario = horarios[horarioIndex];
 
-              print('DEBUG: Navegando para MedicationAlertScreen com medicationId: ${response.payload}');
-              navigatorKey.currentState?.push(
-                MaterialPageRoute(
-                  builder: (context) => MedicationAlertScreen(
-                    medicationId: response.payload!,
-                    nome: nome,
-                    dose: dosePorAlarme.toString(),
-                    fotoPath: fotoPath,
-                    horario: horario,
-                    database: _database!,
-                  ),
-                ),
-              );
+                  print('DEBUG: Preparando navegação para MedicationAlertScreen com medicationId: ${response.payload}');
+                  final navigatorState = navigatorKey.currentState;
+                  if (navigatorState != null) {
+                    await navigatorState.push(
+                      MaterialPageRoute(
+                        builder: (context) => MedicationAlertScreen(
+                          horario: horario,
+                          medicationIds: [response.payload!], // Compatibilidade com um único ID
+                          database: _database!,
+                        ),
+                      ),
+                    );
+                    print('DEBUG: Navegação concluída');
+                  } else {
+                    print('DEBUG: ERRO: NavigatorState é nulo, navegação não realizada');
+                  }
+                } else {
+                  print('DEBUG: ERRO: Nenhum medicamento encontrado para ID: ${response.payload}');
+                }
+              }
+            } catch (e) {
+              print('DEBUG: ERRO ao processar notificação: $e');
             }
+          } else {
+            print('DEBUG: ERRO: Payload ou database nulo - Payload: ${response.payload}, Database: ${_database != null}');
           }
         },
       );
@@ -122,7 +117,7 @@ class NotificationService {
 
       final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
-        // Criar canal medication_channel
+        // Criar canal para notificações imediatas
         await androidPlugin.createNotificationChannel(
           const AndroidNotificationChannel(
             'medication_channel',
@@ -135,7 +130,20 @@ class NotificationService {
             enableLights: true,
           ),
         );
-        print('DEBUG: Canal de notificação medication_channel criado');
+        // Criar canal para notificações agendadas
+        await androidPlugin.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'scheduled_medication_channel',
+            'Lembrete Agendado de Medicamento',
+            description: 'Notificações agendadas para lembretes de medicamentos',
+            importance: Importance.max,
+            playSound: true,
+            showBadge: true,
+            enableVibration: true,
+            enableLights: true,
+          ),
+        );
+        print('DEBUG: Canais de notificação medication_channel e scheduled_medication_channel criados');
 
         // Verificar e solicitar permissões
         bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
@@ -161,6 +169,7 @@ class NotificationService {
       print('DEBUG: Erro ao inicializar NotificationService: $e');
     }
   }
+
 
   Future<void> showNotification({
     required int id,
@@ -207,8 +216,8 @@ class NotificationService {
     required int id,
     required String title,
     required String body,
-    String? sound,
-    required String payload,
+    required String payload, // Substitui medicationId por payload
+    required String sound,
     required DateTime scheduledTime,
   }) async {
     final now = DateTime.now();
@@ -233,12 +242,12 @@ class NotificationService {
       }
 
       final androidDetails = AndroidNotificationDetails(
-        'medication_channel',
+        'medication_channel', // Usar o mesmo canal das notificações imediatas
         'Lembrete de Medicamento',
         channelDescription: 'Notificações para lembretes de medicamentos',
         importance: Importance.max,
         priority: Priority.max,
-        sound: sound != null ? RawResourceAndroidNotificationSound(sound) : null,
+        sound: RawResourceAndroidNotificationSound('alarm'),
         playSound: true,
         showWhen: true,
         visibility: NotificationVisibility.public,
@@ -254,7 +263,7 @@ class NotificationService {
         android: androidDetails,
       );
 
-      print('DEBUG: Usando androidScheduleMode: alarmClock');
+      print('DEBUG: Usando androidScheduleMode: exactAllowWhileIdle');
       await _notificationsPlugin.zonedSchedule(
         id,
         title,
@@ -262,7 +271,7 @@ class NotificationService {
         tz.TZDateTime.from(scheduledTime, tz.getLocation('America/Sao_Paulo')),
         notificationDetails,
         payload: payload,
-        androidScheduleMode: AndroidScheduleMode.alarmClock,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
 
@@ -272,17 +281,18 @@ class NotificationService {
       final pendingNotifications = await _notificationsPlugin.pendingNotificationRequests();
       print('DEBUG: Notificações pendentes: ${pendingNotifications.length}');
       for (var notification in pendingNotifications) {
-        print('DEBUG: Notificação pendente - ID: ${notification.id}, Title: ${notification.title}');
+        print('DEBUG: Notificação pendente - ID: ${notification.id}, Title: ${notification.title}, Payload: ${notification.payload}');
       }
     } catch (e) {
       print('DEBUG: Erro ao agendar notificação: $e');
+      rethrow; // Para capturar erros no console
     }
-    // Verificar notificações pendentes após 60 segundos
-    Future.delayed(Duration(seconds: 60), () async {
+    // Verificar notificações pendentes após 90 segundos
+    Future.delayed(Duration(seconds: 90), () async {
       final pendingNotifications = await _notificationsPlugin.pendingNotificationRequests();
-      print('DEBUG: Notificações pendentes após 60 segundos: ${pendingNotifications.length}');
+      print('DEBUG: Notificações pendentes após 90 segundos: ${pendingNotifications.length}');
       for (var notification in pendingNotifications) {
-        print('DEBUG: Notificação pendente após 60 segundos - ID: ${notification.id}, Title: ${notification.title}');
+        print('DEBUG: Notificação pendente após 90 segundos - ID: ${notification.id}, Title: ${notification.title}, Payload: ${notification.payload}');
       }
     });
   }
@@ -296,4 +306,10 @@ class NotificationService {
       print('DEBUG: Erro ao cancelar notificações: $e');
     }
   }
+
+  Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    return await _notificationsPlugin.pendingNotificationRequests();
+  }
+
 }
+

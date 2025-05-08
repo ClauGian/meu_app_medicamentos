@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AlertSoundSelectionScreen extends StatefulWidget {
   const AlertSoundSelectionScreen({super.key});
@@ -11,9 +12,25 @@ class AlertSoundSelectionScreen extends StatefulWidget {
 class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
   final AudioPlayer audioPlayer = AudioPlayer();
   final List<String> sounds = ['alarm.mp3', 'alert.mp3', 'malta.mp3', 'simple.mp3', 'violin.mp3'];
-
   String? selectedSound;
   bool _isPlaying = false;
+  bool _isEditing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSelectedSound();
+  }
+
+  Future<void> _loadSelectedSound() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedSound = prefs.getString('selected_sound');
+    setState(() {
+      selectedSound = savedSound;
+      _isEditing = savedSound == null; // Habilitar edição se não houver som salvo
+    });
+    print('DEBUG: Som carregado: $savedSound');
+  }
 
   Future<void> _togglePlayStop() async {
     if (_isPlaying) {
@@ -23,7 +40,7 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
       });
     } else {
       if (selectedSound != null) {
-        await audioPlayer.stop(); // Garante que qualquer áudio anterior seja parado
+        await audioPlayer.stop();
         try {
           await audioPlayer.play(AssetSource('sounds/$selectedSound'));
           setState(() {
@@ -48,11 +65,11 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    audioPlayer.stop();
-    audioPlayer.dispose();
-    super.dispose();
+  void _toggleEditing() {
+    setState(() {
+      _isEditing = !_isEditing;
+    });
+    print('DEBUG: Modo de edição: $_isEditing');
   }
 
   void _saveSound() {
@@ -63,23 +80,33 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
       return;
     }
 
-    // TODO: Salvar no banco ou SharedPreferences
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Som "$selectedSound" salvo com sucesso!'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-
-    // Atrasar o pop para garantir que o SnackBar seja exibido
-    Future.delayed(const Duration(seconds: 3), () {
-      Navigator.pop(context);
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setString('selected_sound', selectedSound!);
+      print('DEBUG: Som salvo: $selectedSound');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Som "${selectedSound!.replaceAll('.mp3', '')}" salvo com sucesso!'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      setState(() {
+        _isEditing = false;
+      });
+      Future.delayed(const Duration(seconds: 2), () {
+        Navigator.pop(context);
+      });
     });
   }
 
   @override
+  void dispose() {
+    audioPlayer.stop();
+    audioPlayer.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Removido log do renderingBackend (não disponível nesta versão)
     return Scaffold(
       backgroundColor: const Color(0xFFCCCCCC),
       appBar: AppBar(
@@ -131,18 +158,20 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
                   final sound = sounds[index];
                   final isSelected = sound == selectedSound;
                   return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        selectedSound = sound;
-                        _isPlaying = false; // Para evitar bug visual
-                        audioPlayer.stop();
-                      });
-                    },
+                    onTap: _isEditing
+                        ? () {
+                            setState(() {
+                              selectedSound = sound;
+                              _isPlaying = false;
+                              audioPlayer.stop();
+                            });
+                          }
+                        : null,
                     child: Container(
                       height: 50,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color.fromARGB(255, 126, 247, 172) : const Color.fromARGB(255, 250, 215, 215),
+                        color: isSelected ? const Color.fromARGB(255, 44, 184, 98) : const Color.fromARGB(255, 250, 215, 215),
                         border: Border.all(
                           color: isSelected ? const Color.fromRGBO(85, 170, 85, 1) : Colors.grey,
                           width: 2,
@@ -156,15 +185,15 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
                     ),
                   );
                 },
-                cacheExtent: 1000.0, // Aumenta o cache para melhorar rolagem
+                cacheExtent: 1000.0,
               ),
             ),
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4), // Reduz padding vertical para menor altura
-                width: 300, // Aumenta a largura (ajuste conforme necessário)
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                width: 300,
                 decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 131, 246, 175), // Verde claro como background
+                  color: const Color.fromARGB(255, 131, 246, 175),
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
@@ -198,17 +227,16 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            
             Center(
               child: ElevatedButton(
-                onPressed: _saveSound,
+                onPressed: _isEditing ? _saveSound : _toggleEditing,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
                   padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 16),
                 ),
-                child: const Text(
-                  'Salvar',
-                  style: TextStyle(
+                child: Text(
+                  _isEditing ? 'Salvar' : 'Alterar',
+                  style: const TextStyle(
                     color: Color.fromRGBO(85, 170, 85, 1),
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
