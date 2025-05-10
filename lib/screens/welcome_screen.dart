@@ -85,6 +85,7 @@ class WelcomeScreen extends StatelessWidget {
                       where: 'horarios LIKE ?',
                       whereArgs: ['%08:00%'],
                     );
+                    print('DEBUG: Medicamentos carregados do banco: $medications'); // Log para inspecionar cuidador_id
                     if (medications.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Nenhum medicamento encontrado para 08:00!')),
@@ -101,18 +102,6 @@ class WelcomeScreen extends StatelessWidget {
 
                     // Cancela todas as notificações pendentes
                     await NotificationService().cancelAllNotifications();
-
-                    // Testa showNotification (imediata) para o primeiro medicamento
-                    if (medications.isNotEmpty) {
-                      final firstMedicationId = medications[0]['id'].toString();
-                      await NotificationService().showNotification(
-                        id: notificationId,
-                        title: 'Teste Imediato',
-                        body: 'Notificação imediata',
-                        sound: 'alarm',
-                        payload: firstMedicationId,
-                      );
-                    }
 
                     // Agenda uma única notificação para o horário "08:00"
                     await notificationService.scheduleNotification(
@@ -132,7 +121,7 @@ class WelcomeScreen extends StatelessWidget {
                     }
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Teste iniciado: notificação imediata + agendada para 08:00 (30s)!')),
+                      SnackBar(content: Text('Teste iniciado: notificação agendada para 08:00 (30s)!')),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(

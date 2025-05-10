@@ -23,7 +23,7 @@ dependencies:
   timezone: ^0.9.4
   path_provider: ^2.1.5
   audioplayers: ^6.0.0
-  shared_preferences: ^2.2.3
+  shared_preferences: ^2.2.3  
   
 
 dev_dependencies:

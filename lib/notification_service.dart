@@ -1,16 +1,147 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:timezone/timezone.dart' as tz;
+import 'package:audioplayers/audioplayers.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'screens/medication_alert_screen.dart'; // Importa da subpasta screens/
+import 'screens/full_screen_notification.dart'; // Importa a nova tela de notificação
+import 'dart:typed_data';
+import 'package:path/path.dart' as path;
+import 'package:flutter/scheduler.dart' hide Priority;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart' as notifications;
+import 'dart:async'; // Para usar Timer
 
 
-class NotificationService {
+// Conjunto global para rastrear IDs de notificações processadas
+final _processedNotificationIds = <int>{};
+
+// Função top-level para inicializar o banco de dados
+Future<Database> _initDatabase() async {
+  final dbPath = await getDatabasesPath();
+  final pathName = path.join(dbPath, 'medications.db');
+  final database = await openDatabase(
+    pathName,
+    version: 3,
+    onCreate: (db, version) async {
+      await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
+      await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, date TEXT)');
+      await db.execute('CREATE TABLE IF NOT EXISTS caregivers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)');
+      print("DEBUG: Criação das tabelas concluída.");
+    },
+    onUpgrade: (db, oldVersion, newVersion) async {
+      if (oldVersion < 2) {
+        await db.execute('ALTER TABLE medications RENAME TO medications_old');
+        await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
+        await db.execute('INSERT INTO medications (id, nome, quantidade, dosagem_diaria, tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id) SELECT id, nome, COALESCE(quantidade, 0), COALESCE(dosagem_diaria, 0), tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id FROM medications_old');
+        await db.execute('DROP TABLE medications_old');
+        print("DEBUG: Migração para versão 2 concluída.");
+      }
+      if (oldVersion < 3) {
+        await db.execute('ALTER TABLE users ADD COLUMN date TEXT');
+        print("DEBUG: Coluna date adicionada à tabela users.");
+      }
+    },
+  );
+  if (!database.isOpen) {
+    throw Exception("Erro: Banco de dados não está aberto.");
+  }
+  print("openDatabase concluído: $database");
+  return database;
+}
+
+// Função top-level para processar respostas de notificação
+Future<void> handleNotificationResponse(NotificationResponse response) async {
+  print('DEBUG: Processando notificação - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
+  if (response.payload != null && response.id != null) {
+    if (_processedNotificationIds.contains(response.id)) {
+      print('DEBUG: Notificação ID ${response.id} já processada, ignorando');
+      return;
+    }
+    _processedNotificationIds.add(response.id!);
+    try {
+      print('DEBUG: Processando payload: ${response.payload}');
+      final payloadParts = response.payload!.split('|');
+      if (payloadParts.length >= 2) {
+        final horario = payloadParts[0];
+        final medicationIds = payloadParts[1].split(',');
+        print('DEBUG: Navegando para FullScreenNotification com horario: $horario, medicationIds: $medicationIds');
+        final navigatorState = NotificationService.navigatorKey.currentState;
+        if (navigatorState != null) {
+          print('DEBUG: NavigatorState disponível, estado do app: ${WidgetsBinding.instance.lifecycleState}');
+          await Future.delayed(Duration(milliseconds: 500)); // Atraso para contexto
+          SchedulerBinding.instance.scheduleFrameCallback((_) async {
+            print('DEBUG: Executando navegação após frame');
+            final database = await _initDatabase();
+            await navigatorState.push(
+              MaterialPageRoute(
+                builder: (context) => FullScreenNotification(
+                  horario: horario,
+                  medicationIds: medicationIds,
+                  database: database,
+                ),
+              ),
+            );
+            print('DEBUG: Navegação concluída');
+          });
+        } else {
+          print('DEBUG: ERRO: NavigatorState é nulo, tentativa de navegação falhou');
+        }
+      } else {
+        print('DEBUG: Payload antigo detectado, consultando medicamento com ID: ${response.payload}');
+        final database = await _initDatabase();
+        final medication = await database.query(
+          'medications',
+          where: 'id = ?',
+          whereArgs: [response.payload],
+        );
+
+        if (medication.isNotEmpty) {
+          print('DEBUG: Medicamento encontrado: $medication');
+          final horario = (medication[0]['horarios'] as String).split(',')[0]; // Usa o primeiro horário
+          print('DEBUG: Preparando navegação para FullScreenNotification com medicationId: ${response.payload}');
+          final navigatorState = NotificationService.navigatorKey.currentState;
+          if (navigatorState != null) {
+            print('DEBUG: NavigatorState disponível, estado do app: ${WidgetsBinding.instance.lifecycleState}');
+            await Future.delayed(Duration(milliseconds: 500)); // Atraso para contexto
+            SchedulerBinding.instance.scheduleFrameCallback((_) async {
+              print('DEBUG: Executando navegação após frame');
+              await navigatorState.push(
+                MaterialPageRoute(
+                  builder: (context) => FullScreenNotification(
+                    horario: horario,
+                    medicationIds: [response.payload!],
+                    database: database,
+                  ),
+                ),
+              );
+              print('DEBUG: Navegação concluída');
+            });
+          } else {
+            print('DEBUG: ERRO: NavigatorState é nulo, tentativa de navegação falhou');
+          }
+        } else {
+          print('DEBUG: ERRO: Nenhum medicamento encontrado para ID: ${response.payload}');
+        }
+      }
+    } catch (e) {
+      print('DEBUG: ERRO ao processar notificação: $e');
+    } finally {
+      // Limpar IDs processados após um tempo para evitar acúmulo
+      Future.delayed(Duration(minutes: 1), () => _processedNotificationIds.remove(response.id));
+    }
+  } else {
+    print('DEBUG: ERRO: Payload ou ID nulo - Payload: ${response.payload}, ID: ${response.id}');
+  }
+}
+
+
+
+
+class NotificationService {  
   static final NotificationService _notificationService = NotificationService._internal();
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Chave para navegação
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   Database? _database;
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Chave para navegação
+  
 
   factory NotificationService() {
     return _notificationService;
@@ -18,6 +149,8 @@ class NotificationService {
 
   NotificationService._internal();
 
+
+  
   Future<void> init(Database db) async {
     print('DEBUG: Iniciando NotificationService');
     _database = db;
@@ -35,79 +168,8 @@ class NotificationService {
 
       bool? initialized = await _notificationsPlugin.initialize(
         initializationSettings,
-        onDidReceiveNotificationResponse: (NotificationResponse response) async {
-          print('DEBUG: Notificação recebida - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
-          if (response.payload != null && _database != null) {
-            try {
-              print('DEBUG: Processando payload: ${response.payload}');
-              final payloadParts = response.payload!.split('|');
-              if (payloadParts.length >= 2) {
-                // Novo formato: "horario|id1,id2,id3"
-                final horario = payloadParts[0]; // Ex.: "08:00"
-                final medicationIds = payloadParts[1].split(','); // Ex.: ["1", "2", "3"]
-                print('DEBUG: Navegando para MedicationAlertScreen com horario: $horario, medicationIds: $medicationIds');
-                final navigatorState = navigatorKey.currentState;
-                if (navigatorState != null) {
-                  await navigatorState.push(
-                    MaterialPageRoute(
-                      builder: (context) => MedicationAlertScreen(
-                        horario: horario,
-                        medicationIds: medicationIds,
-                        database: _database!,
-                      ),
-                    ),
-                  );
-                  print('DEBUG: Navegação concluída');
-                } else {
-                  print('DEBUG: ERRO: NavigatorState é nulo, navegação não realizada');
-                }
-              } else {
-                // Compatibilidade com payloads antigos (um único ID)
-                print('DEBUG: Payload antigo detectado, consultando medicamento com ID: ${response.payload}');
-                final medication = await _database!.query(
-                  'medications',
-                  where: 'id = ?',
-                  whereArgs: [response.payload],
-                );
-
-                if (medication.isNotEmpty) {
-                  print('DEBUG: Medicamento encontrado: $medication');
-                  final nome = medication[0]['nome'] as String;
-                  final dosagemDiaria = medication[0]['dosagem_diaria'] as int;
-                  final horarios = (medication[0]['horarios'] as String).split(',');
-                  final dosePorAlarme = dosagemDiaria / horarios.length;
-                  final fotoPath = medication[0]['foto_embalagem'] as String? ?? '';
-                  final notificationId = response.id ?? 0;
-                  final horarioIndex = notificationId % horarios.length;
-                  final horario = horarios[horarioIndex];
-
-                  print('DEBUG: Preparando navegação para MedicationAlertScreen com medicationId: ${response.payload}');
-                  final navigatorState = navigatorKey.currentState;
-                  if (navigatorState != null) {
-                    await navigatorState.push(
-                      MaterialPageRoute(
-                        builder: (context) => MedicationAlertScreen(
-                          horario: horario,
-                          medicationIds: [response.payload!], // Compatibilidade com um único ID
-                          database: _database!,
-                        ),
-                      ),
-                    );
-                    print('DEBUG: Navegação concluída');
-                  } else {
-                    print('DEBUG: ERRO: NavigatorState é nulo, navegação não realizada');
-                  }
-                } else {
-                  print('DEBUG: ERRO: Nenhum medicamento encontrado para ID: ${response.payload}');
-                }
-              }
-            } catch (e) {
-              print('DEBUG: ERRO ao processar notificação: $e');
-            }
-          } else {
-            print('DEBUG: ERRO: Payload ou database nulo - Payload: ${response.payload}, Database: ${_database != null}');
-          }
-        },
+        onDidReceiveNotificationResponse: handleNotificationResponse,
+        onDidReceiveBackgroundNotificationResponse: handleNotificationResponse,
       );
       print('DEBUG: FlutterLocalNotificationsPlugin inicializado: $initialized');
       if (initialized != true) {
@@ -117,7 +179,17 @@ class NotificationService {
 
       final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
-        // Criar canal para notificações imediatas
+        // Criar grupo de canais
+        await androidPlugin.createNotificationChannelGroup(
+          const AndroidNotificationChannelGroup(
+            'medication_group',
+            'Lembretes de Medicamentos',
+            description: 'Grupo para lembretes de medicamentos',
+          ),
+        );
+        print('DEBUG: Grupo de canais medication_group criado');
+
+        // Criar canal único para notificações imediatas e agendadas
         await androidPlugin.createNotificationChannel(
           const AndroidNotificationChannel(
             'medication_channel',
@@ -128,22 +200,11 @@ class NotificationService {
             sound: RawResourceAndroidNotificationSound('alarm'),
             enableVibration: true,
             enableLights: true,
-          ),
-        );
-        // Criar canal para notificações agendadas
-        await androidPlugin.createNotificationChannel(
-          const AndroidNotificationChannel(
-            'scheduled_medication_channel',
-            'Lembrete Agendado de Medicamento',
-            description: 'Notificações agendadas para lembretes de medicamentos',
-            importance: Importance.max,
-            playSound: true,
             showBadge: true,
-            enableVibration: true,
-            enableLights: true,
+            groupId: 'medication_group', // Associa ao grupo criado
           ),
         );
-        print('DEBUG: Canais de notificação medication_channel e scheduled_medication_channel criados');
+        print('DEBUG: Canal de notificação medication_channel criado');
 
         // Verificar e solicitar permissões
         bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
@@ -159,11 +220,7 @@ class NotificationService {
           print('DEBUG: Permissão de alarme exato não concedida');
           return;
         }
-      } else {
-        print('DEBUG: AndroidFlutterLocalNotificationsPlugin não encontrado');
-        return;
       }
-
       print('DEBUG: NotificationService inicializado com sucesso');
     } catch (e) {
       print('DEBUG: Erro ao inicializar NotificationService: $e');
@@ -185,27 +242,51 @@ class NotificationService {
         'Lembrete de Medicamento',
         channelDescription: 'Notificações para lembretes de medicamentos',
         importance: Importance.max,
-        priority: Priority.max,
-        sound: RawResourceAndroidNotificationSound(sound), // Removido sound != null, pois é required
+        priority: notifications.Priority.max,
+        sound: RawResourceAndroidNotificationSound(sound),
         playSound: true,
         showWhen: true,
         visibility: NotificationVisibility.public,
         enableVibration: true,
         enableLights: true,
-        autoCancel: true, // Desaparece após clique
-        ongoing: false,
-        groupKey: 'medication_group_$id',
-        ticker: 'Lembrete de Medicamento',
+        autoCancel: false,
+        ongoing: true,
+        fullScreenIntent: true,
+        timeoutAfter: null,
+        category: AndroidNotificationCategory.alarm,
+        additionalFlags: Int32List.fromList([4]), // Flag para repetir som (FLAG_INSISTENT)
       );
       final notificationDetails = NotificationDetails(android: androidDetails);
+
+      // Adicionar sufixo ao payload para indicar que o fallback será usado
+      final modifiedPayload = payload.isNotEmpty ? '$payload|fallback' : payload;
 
       await _notificationsPlugin.show(
         id,
         title,
         body,
         notificationDetails,
-        payload: payload,
+        payload: modifiedPayload, // Usar o payload modificado
       );
+      // Fallback para exibir FullScreenNotification diretamente
+      if (navigatorKey.currentState != null && payload.isNotEmpty) {
+        final payloadParts = payload.split('|');
+        if (payloadParts.length >= 2) {
+          final horario = payloadParts[0];
+          final medicationIds = payloadParts[1].split(',');
+          print('DEBUG: Fallback - Navegando para FullScreenNotification com horario: $horario, medicationIds: $medicationIds');
+          await navigatorKey.currentState!.push(
+            MaterialPageRoute(
+              builder: (context) => FullScreenNotification(
+                horario: horario,
+                medicationIds: medicationIds,
+                database: _database!,
+              ),
+            ),
+          );
+          print('DEBUG: Navegação de fallback concluída');
+        }
+      }
       print('DEBUG: Notificação exibida com sucesso');
     } catch (e) {
       print('DEBUG: Erro ao exibir notificação: $e');
@@ -215,86 +296,90 @@ class NotificationService {
   Future<void> scheduleNotification({
     required int id,
     required String title,
-    required String body,
-    required String payload, // Substitui medicationId por payload
-    required String sound,
+    String? body,
+    required String payload,
     required DateTime scheduledTime,
+    String sound = 'alarm',
   }) async {
-    final now = DateTime.now();
     print('DEBUG: Agendando notificação com id: $id, title: $title, sound: $sound, scheduledTime: $scheduledTime');
+
+    final now = DateTime.now();
+    final delay = scheduledTime.difference(now).inMilliseconds;
     print('DEBUG: Horário atual do dispositivo: $now');
-    print('DEBUG: Diferença de tempo (scheduledTime - now): ${scheduledTime.difference(now).inSeconds} segundos');
-    if (scheduledTime.isBefore(now)) {
-      print('DEBUG: ERRO: scheduledTime está no passado! Notificação não será agendada.');
+    print('DEBUG: Diferença de tempo (scheduledTime - now): ${delay / 1000} segundos');
+
+    if (delay < 0) {
+      print('DEBUG: Horário agendado já passou, ignorando');
       return;
     }
-    print('DEBUG: Fuso horário: America/Sao_Paulo, TZDateTime: ${tz.TZDateTime.from(scheduledTime, tz.getLocation('America/Sao_Paulo'))}');
-    try {
-      // Verificar permissão de alarme exato
-      final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      if (androidPlugin != null) {
-        bool? exactAlarmsGranted = await androidPlugin.requestExactAlarmsPermission();
-        print('DEBUG: Permissão de alarme exato concedida: $exactAlarmsGranted');
-        if (exactAlarmsGranted == null || !exactAlarmsGranted) {
-          print('DEBUG: Falha na permissão de alarme exato, notificação pode não ser agendada');
-          return;
+
+    // Usar Timer para simular o agendamento
+    Timer(Duration(milliseconds: delay), () async {
+      print('DEBUG: Timer disparado, exibindo FullScreenNotification');
+      AudioPlayer? player;
+      try {
+        // Tocar o som do alarme
+        player = AudioPlayer();
+        await player.setSource(AssetSource('sounds/$sound.mp3')); // Corrigido para sounds/
+        await player.setVolume(1.0);
+        await player.setReleaseMode(ReleaseMode.loop); // Repetir o som
+        await player.resume();
+        print('DEBUG: Som do alarme iniciado');
+      } catch (e) {
+        print('DEBUG: Erro ao tocar o som: $e');
+        player = null; // Continuar mesmo se o som falhar
+      }
+
+      try {
+        // Navegar diretamente para FullScreenNotification
+        final navigatorState = navigatorKey.currentState;
+        if (navigatorState != null && payload.isNotEmpty) {
+          final payloadParts = payload.split('|');
+          if (payloadParts.length >= 2) {
+            final horario = payloadParts[0];
+            final medicationIds = payloadParts[1].split(',');
+            print('DEBUG: Navegando para FullScreenNotification com horario: $horario, medicationIds: $medicationIds');
+            await Future.delayed(Duration(milliseconds: 500)); // Atraso para contexto
+            SchedulerBinding.instance.scheduleFrameCallback((_) async {
+              print('DEBUG: Executando navegação após frame');
+              await navigatorState.push(
+                MaterialPageRoute(
+                  builder: (context) => FullScreenNotification(
+                    horario: horario,
+                    medicationIds: medicationIds,
+                    database: _database!,
+                    audioPlayer: player,
+                  ),
+                ),
+              );
+              print('DEBUG: Navegação concluída');
+            });
+          } else {
+            print('DEBUG: ERRO: Payload inválido');
+            if (player != null) await player.stop();
+          }
+        } else {
+          print('DEBUG: ERRO: NavigatorState é nulo');
+          if (player != null) await player.stop();
         }
-      }
-
-      final androidDetails = AndroidNotificationDetails(
-        'medication_channel', // Usar o mesmo canal das notificações imediatas
-        'Lembrete de Medicamento',
-        channelDescription: 'Notificações para lembretes de medicamentos',
-        importance: Importance.max,
-        priority: Priority.max,
-        sound: RawResourceAndroidNotificationSound('alarm'),
-        playSound: true,
-        showWhen: true,
-        visibility: NotificationVisibility.public,
-        enableVibration: true,
-        enableLights: true,
-        autoCancel: false,
-        ongoing: false,
-        groupKey: 'medication_group_$id',
-        ticker: 'Lembrete de Medicamento',
-      );
-
-      final notificationDetails = NotificationDetails(
-        android: androidDetails,
-      );
-
-      print('DEBUG: Usando androidScheduleMode: exactAllowWhileIdle');
-      await _notificationsPlugin.zonedSchedule(
-        id,
-        title,
-        body,
-        tz.TZDateTime.from(scheduledTime, tz.getLocation('America/Sao_Paulo')),
-        notificationDetails,
-        payload: payload,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      );
-
-      print('DEBUG: Notificação agendada com sucesso');
-      
-      // Verificar notificações pendentes
-      final pendingNotifications = await _notificationsPlugin.pendingNotificationRequests();
-      print('DEBUG: Notificações pendentes: ${pendingNotifications.length}');
-      for (var notification in pendingNotifications) {
-        print('DEBUG: Notificação pendente - ID: ${notification.id}, Title: ${notification.title}, Payload: ${notification.payload}');
-      }
-    } catch (e) {
-      print('DEBUG: Erro ao agendar notificação: $e');
-      rethrow; // Para capturar erros no console
-    }
-    // Verificar notificações pendentes após 90 segundos
-    Future.delayed(Duration(seconds: 90), () async {
-      final pendingNotifications = await _notificationsPlugin.pendingNotificationRequests();
-      print('DEBUG: Notificações pendentes após 90 segundos: ${pendingNotifications.length}');
-      for (var notification in pendingNotifications) {
-        print('DEBUG: Notificação pendente após 90 segundos - ID: ${notification.id}, Title: ${notification.title}, Payload: ${notification.payload}');
+      } catch (e) {
+        print('DEBUG: Erro ao navegar para FullScreenNotification: $e');
+        if (player != null) await player.stop();
       }
     });
+
+    print('DEBUG: Agendamento configurado com sucesso');
+  }
+
+
+  Future<void> stopNotificationSound(int id) async {
+    print('DEBUG: Parando som da notificação com id: $id');
+    try {
+      await _notificationsPlugin.cancel(id);
+      print('DEBUG: Notificação cancelada com sucesso');
+    } catch (e) {
+      print('DEBUG: Erro ao parar notificação: $e');
+    }
   }
 
   Future<void> cancelAllNotifications() async {

@@ -135,7 +135,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     }
 
     final now = DateTime.now();
-    final newTime = now.add(Duration(minutes: minutes));
+    final newTime = now.add(Duration(seconds: 30)); // Teste rápido
 
     // Agenda uma nova notificação com os IDs restantes
     if (remainingIds.isNotEmpty) {
@@ -166,17 +166,23 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       where: 'id = ?',
       whereArgs: [medication['id']],
     );
+    print('DEBUG: Medicamento ${medication['nome']} pulado. Novo skip_count: $skipCount');
 
-    // Verifica se há um cuidador_id válido (não nulo e não zero)
-    if (medication['cuidador_id'] != null && medication['cuidador_id'] != 0 && skipCount >= 2) {
-      await notificationService.showNotification(
-        id: 1000,
-        title: 'Aviso ao Cuidador',
-        body: 'Usuário pulou ${medication['nome']} 2 vezes!',
-        sound: 'alarm',
-        payload: '',
+    // Verifica se há um cuidador_id válido (não nulo, não vazio, não zero) e se skip_count atingiu 2
+    final cuidadorId = medication['cuidador_id'];
+    if (cuidadorId != null && cuidadorId.toString().isNotEmpty && cuidadorId.toString() != '0' && skipCount == 2) {
+      print('DEBUG: Enviando notificação ao cuidador - Usuário pulou ${medication['nome']} 2 vezes (cuidador_id: $cuidadorId)');
+      // TODO: Implementar notificação ao cuidador via Firebase (enviar para cuidador_id)
+      // Resetar skip_count para 0 após notificar o cuidador
+      await widget.database.update(
+        'medications',
+        {'skip_count': 0},
+        where: 'id = ?',
+        whereArgs: [medication['id']],
       );
-      // TODO: Implementar notificação ao cuidador via Firebase (quando configurado)
+      print('DEBUG: skip_count resetado para 0 para o medicamento ${medication['nome']}');
+    } else {
+      print('DEBUG: Notificação ao cuidador não enviada - cuidador_id inválido ($cuidadorId) ou skip_count inválido ($skipCount)');
     }
 
     setState(() {
@@ -186,6 +192,8 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
 
     _checkAndCloseIfDone();
   }
+
+
 
   @override
   Widget build(BuildContext context) {
