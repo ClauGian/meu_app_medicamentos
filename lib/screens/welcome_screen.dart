@@ -85,6 +85,13 @@ class WelcomeScreen extends StatelessWidget {
                       where: 'horarios LIKE ?',
                       whereArgs: ['%08:00%'],
                     );
+                    // Atualiza cuidador_id e reseta skip_count para medicamentos com horário 08:00
+                    //await database.update(
+                    //  'medications',
+                    //  {'cuidador_id': '123', 'skip_count': 0},
+                    //  where: 'horarios LIKE ?',
+                    //  whereArgs: ['%08:00%'],
+                    //);                    
                     print('DEBUG: Medicamentos carregados do banco: $medications'); // Log para inspecionar cuidador_id
                     if (medications.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(

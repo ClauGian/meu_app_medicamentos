@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'dart:io';
 import '../notification_service.dart'; // Importar o NotificationService
+import 'dart:async';
 
 class MedicationAlertScreen extends StatefulWidget {
   final String horario;
@@ -23,7 +24,11 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
   final NotificationService notificationService = NotificationService();
   List<Map<String, dynamic>> medications = [];
   List<bool> isTaken = [];
-  List<bool> isSkipped = []; // Novo estado para indicar se o medicamento foi pulado
+  List<bool> isSkipped = [];
+
+  // Adicionar para rastrear adiamentos
+  static List<Map<String, dynamic>> _pendingDelays = [];
+  static Timer? _delayTimer;
 
   @override
   void initState() {
@@ -51,7 +56,6 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
   }
 
   void _checkAndCloseIfDone() {
-    // Verifica se todos os medicamentos foram processados (tomados, adiados ou pulados)
     bool allProcessed = true;
     for (int i = 0; i < medications.length; i++) {
       if (!isTaken[i] && !isSkipped[i] && medications[i].isNotEmpty) {
@@ -60,7 +64,11 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       }
     }
     if (allProcessed && mounted) {
-      Navigator.pop(context);
+      Future.delayed(const Duration(seconds: 5), () {
+        if (mounted) {
+          Navigator.pop(context);
+        }
+      });
     }
   }
 
@@ -91,68 +99,53 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     }
 
     setState(() {
-      medications[index] = medication..['quantidade'] = novaQuantidade;
+      medications[index] = <String, dynamic>{};
       isTaken[index] = true;
+      _checkAndCloseIfDone();
+    });
+  }
+
+  Future<void> _handleDelay(int index, BuildContext context) async {
+    final medicationId = medications[index]['id'].toString();
+    final now = DateTime.now();
+
+    _pendingDelays.add({
+      'medicationId': medicationId,
+      'horario': widget.horario,
+      'timestamp': now,
     });
 
-    _checkAndCloseIfDone();
-  }
+    _delayTimer?.cancel();
 
-  void _showDelayOptions(int index, BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Adiar Alarme"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text("15 minutos"),
-              onTap: () => _handleDelay(index, context, 15),
-            ),
-            ListTile(
-              title: const Text("30 minutos"),
-              onTap: () => _handleDelay(index, context, 30),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar"),
-          ),
-        ],
-      ),
-    );
-  }
+    _delayTimer = Timer(Duration(seconds: 5), () async {
+      final recentDelays = _pendingDelays.where((delay) {
+        return now.difference(delay['timestamp'] as DateTime).inSeconds <= 5;
+      }).toList();
 
-  Future<void> _handleDelay(int index, BuildContext context, int minutes) async {
-    final remainingIds = <String>[];
-    for (int i = 0; i < medications.length; i++) {
-      if (i != index && !isTaken[i] && !isSkipped[i]) {
-        remainingIds.add(medications[i]['id'].toString());
+      final medicationIds = recentDelays
+          .map((delay) => delay['medicationId'] as String)
+          .toSet()
+          .toList();
+
+      if (medicationIds.isNotEmpty) {
+        final newTime = DateTime.now().add(Duration(minutes: 15)); // Calcular newTime aqui
+        final payload = '${widget.horario}|${medicationIds.join(',')}';
+        await notificationService.scheduleNotification(
+          id: DateTime.now().millisecondsSinceEpoch % 10000,
+          title: 'Alerta de Medicamento: ${widget.horario}',
+          body: 'Você tem ${medicationIds.length} medicamentos para tomar',
+          payload: payload,
+          sound: 'alarm',
+          scheduledTime: newTime,
+        );
+        print('DEBUG: Notificação unificada agendada para ${medicationIds.length} medicamentos: $medicationIds');
       }
-    }
 
-    final now = DateTime.now();
-    final newTime = now.add(Duration(seconds: 30)); // Teste rápido
-
-    // Agenda uma nova notificação com os IDs restantes
-    if (remainingIds.isNotEmpty) {
-      final payload = '${widget.horario}|${remainingIds.join(',')}';
-      await notificationService.scheduleNotification(
-        id: DateTime.now().millisecondsSinceEpoch % 10000,
-        title: 'Alerta de Medicamento: ${widget.horario}',
-        body: 'Você tem ${remainingIds.length} medicamentos para tomar',
-        payload: payload,
-        sound: 'alarm',
-        scheduledTime: newTime,
-      );
-    }
+      _pendingDelays.clear();
+    });
 
     setState(() {
-      medications[index] = <String, dynamic>{}; // Remove o medicamento da lista
-      Navigator.pop(context); // Fecha o diálogo
+      medications[index] = <String, dynamic>{};
       _checkAndCloseIfDone();
     });
   }
@@ -168,12 +161,9 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     );
     print('DEBUG: Medicamento ${medication['nome']} pulado. Novo skip_count: $skipCount');
 
-    // Verifica se há um cuidador_id válido (não nulo, não vazio, não zero) e se skip_count atingiu 2
     final cuidadorId = medication['cuidador_id'];
     if (cuidadorId != null && cuidadorId.toString().isNotEmpty && cuidadorId.toString() != '0' && skipCount == 2) {
       print('DEBUG: Enviando notificação ao cuidador - Usuário pulou ${medication['nome']} 2 vezes (cuidador_id: $cuidadorId)');
-      // TODO: Implementar notificação ao cuidador via Firebase (enviar para cuidador_id)
-      // Resetar skip_count para 0 após notificar o cuidador
       await widget.database.update(
         'medications',
         {'skip_count': 0},
@@ -182,18 +172,15 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       );
       print('DEBUG: skip_count resetado para 0 para o medicamento ${medication['nome']}');
     } else {
-      print('DEBUG: Notificação ao cuidador não enviada - cuidador_id inválido ($cuidadorId) ou skip_count inválido ($skipCount)');
+      print('DEBUG: Notificação ao cuidador não enviada - cuidador_id: $cuidadorId, skip_count: $skipCount');
     }
 
     setState(() {
-      medications[index] = medication..['skip_count'] = skipCount;
+      medications[index] = <String, dynamic>{};
       isSkipped[index] = true;
+      _checkAndCloseIfDone();
     });
-
-    _checkAndCloseIfDone();
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +194,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
             children: [
               Text(
                 "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year} - ${widget.horario}",
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Color.fromRGBO(0, 105, 148, 1), fontSize: 30, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               Expanded(
@@ -215,7 +202,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                   itemCount: medications.length,
                   itemBuilder: (context, index) {
                     final med = medications[index];
-                    if (med.isEmpty) return const SizedBox.shrink(); // Esconde medicamentos adiados
+                    if (med.isEmpty) return const SizedBox.shrink();
 
                     final nome = med['nome'] as String;
                     final fotoPath = med['foto_embalagem'] as String? ?? '';
@@ -233,51 +220,170 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                         color: const Color(0xFFEFEFEF),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Text(
-                            "Medicamento: $nome",
-                            style: const TextStyle(fontSize: 18),
+                            nome,
+                            style: const TextStyle(
+                              color: Color.fromRGBO(0, 105, 148, 1),
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             "Tomar: $doseFormatada comprimido(s)",
-                            style: const TextStyle(fontSize: 18),
+                            style: const TextStyle(fontSize: 20),
                           ),
                           const SizedBox(height: 16),
                           if (fotoPath.isNotEmpty)
-                            Image.file(
-                              File(fotoPath),
-                              width: 100,
-                              height: 100,
-                              fit: BoxFit.cover,
+                            GestureDetector(
+                              onTap: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => Dialog(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Image.file(
+                                          File(fotoPath),
+                                          width: MediaQuery.of(context).size.width * 0.8,
+                                          fit: BoxFit.contain,
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context),
+                                          child: const Text("Fechar"),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                              child: Image.file(
+                                File(fotoPath),
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           const SizedBox(height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          Column(
                             children: [
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: isTaken[index] ? Colors.grey : const Color(0xFF4CAF50),
+                                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                                  textStyle: const TextStyle(fontSize: 20),
                                 ),
-                                onPressed: isTaken[index] ? null : () => _handleTake(index),
+                                onPressed: isTaken[index] || isSkipped[index]
+                                    ? null
+                                    : () {
+                                        showDialog(
+                                          context: context,
+                                          barrierDismissible: false,
+                                          builder: (context) => Center(
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF006994),
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                'Tomou o medicamento ${med['nome']}',
+                                                style: const TextStyle(color: Colors.white, fontSize: 20),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                        Future.delayed(const Duration(seconds: 5), () {
+                                          if (Navigator.of(context).canPop()) {
+                                            Navigator.of(context).pop();
+                                          }
+                                        });
+                                        _handleTake(index);
+                                      },
                                 child: const Text("Tomar"),
                               ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2196F3),
-                                ),
-                                onPressed: () => _showDelayOptions(index, context),
-                                child: const Text("Adiar"),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isSkipped[index] ? Colors.grey : Colors.red,
-                                ),
-                                onPressed: isSkipped[index] ? null : () => _handleSkip(index),
-                                child: const Text("Pular"),
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF2196F3),
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                        textStyle: const TextStyle(fontSize: 20),
+                                      ),
+                                      onPressed: isTaken[index] || isSkipped[index]
+                                          ? null
+                                          : () {
+                                              showDialog(
+                                                context: context,
+                                                barrierDismissible: false,
+                                                builder: (context) => Center(
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF006994),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: Text(
+                                                      'Medicamento ${med['nome']} adiado por 15 minutos',
+                                                      style: const TextStyle(color: Colors.white, fontSize: 20),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                              Future.delayed(const Duration(seconds: 5), () {
+                                                if (Navigator.of(context).canPop()) {
+                                                  Navigator.of(context).pop();
+                                                }
+                                              });
+                                              _handleDelay(index, context);
+                                            },
+                                      child: const Text("Adiar"),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: isSkipped[index] ? Colors.grey : Colors.red,
+                                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                                        textStyle: const TextStyle(fontSize: 20),
+                                      ),
+                                      onPressed: isTaken[index] || isSkipped[index]
+                                          ? null
+                                          : () {
+                                              showDialog(
+                                                context: context,
+                                                barrierDismissible: false,
+                                                builder: (context) => Center(
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF006994),
+                                                      borderRadius: BorderRadius.circular(8),
+                                                    ),
+                                                    child: Text(
+                                                      'Medicamento ${med['nome']} pulado',
+                                                      style: const TextStyle(color: Colors.white, fontSize: 20),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                              Future.delayed(const Duration(seconds: 5), () {
+                                                if (Navigator.of(context).canPop()) {
+                                                  Navigator.of(context).pop();
+                                                }
+                                              });
+                                              _handleSkip(index);
+                                            },
+                                      child: const Text("Pular"),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -285,20 +391,6 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                       ),
                     );
                   },
-                ),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                ),
-                child: const Text(
-                  "Fechar",
-                  style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
             ],

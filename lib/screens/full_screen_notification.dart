@@ -3,24 +3,49 @@ import 'package:sqflite/sqflite.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'medication_alert_screen.dart';
 
-class FullScreenNotification extends StatelessWidget {
+class FullScreenNotification extends StatefulWidget {
   final String horario;
   final List<String> medicationIds;
   final Database database;
   final AudioPlayer? audioPlayer;
+  final VoidCallback? onClose;
 
-  FullScreenNotification({
+  const FullScreenNotification({
     super.key,
     required this.horario,
     required this.medicationIds,
     required this.database,
     this.audioPlayer,
+    this.onClose,
   });
+
+  @override
+  FullScreenNotificationState createState() => FullScreenNotificationState();
+}
+
+class FullScreenNotificationState extends State<FullScreenNotification> {
+  @override
+  void initState() {
+    super.initState();
+    // Parar o som do alarme quando a tela abrir
+    if (widget.audioPlayer != null) {
+      widget.audioPlayer!.setReleaseMode(ReleaseMode.stop);
+      widget.audioPlayer!.stop();
+      print('DEBUG: Som do alarme parado ao abrir FullScreenNotification');
+    }
+  }
+
+  @override
+  void dispose() {
+    // Chamar onClose ao fechar a tela
+    widget.onClose?.call();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromRGBO(204, 248, 204, 1),
+      backgroundColor: const Color.fromRGBO(224, 245, 224, 1),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -37,30 +62,32 @@ class FullScreenNotification extends StatelessWidget {
             const SizedBox(height: 40),
             ElevatedButton(
               onPressed: () async {
-                // Parar o som do alarme
-                if (audioPlayer != null) {
-                  await audioPlayer!.stop();
-                  print('DEBUG: Som do alarme parado');
+                // Parar o som do alarme (por segurança, caso initState falhe)
+                if (widget.audioPlayer != null) {
+                  await widget.audioPlayer!.stop();
+                  print('DEBUG: Som do alarme parado ao clicar em Ver');
                 }
                 // Navegar para MedicationAlertScreen e remover a tela cheia
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
                     builder: (context) => MedicationAlertScreen(
-                      horario: horario,
-                      medicationIds: medicationIds,
-                      database: database,
+                      horario: widget.horario,
+                      medicationIds: widget.medicationIds,
+                      database: widget.database,
                     ),
                   ),
                 );
+                // Chamar onClose ao navegar
+                widget.onClose?.call();
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
                 padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 20),
               ),
               child: const Text(
                 'Ver',
-                style: TextStyle(fontSize: 24, color: Colors.white),
+                style: TextStyle(fontSize: 30, color: Colors.white),
               ),
             ),
           ],

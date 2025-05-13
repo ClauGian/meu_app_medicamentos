@@ -633,7 +633,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
         'isContinuous': _isContinuous ? 1 : 0,
         'foto_embalagem': _image?.path ?? '',
         'skip_count': widget.medication?['skip_count'] ?? 0,
-        'cuidador_id': widget.medication?['cuidador_id'] ?? '',
+        'cuidador_id': widget.medication?['cuidador_id'] ?? '123',
       };
       print('Horários salvos: ${medicationData['horarios']}');
       print("Dados do medicamento: $medicationData");

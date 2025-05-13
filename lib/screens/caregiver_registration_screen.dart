@@ -205,7 +205,7 @@ class CaregiverRegistrationScreenState extends State<CaregiverRegistrationScreen
                     fontSize: 20,
                   ),
                   filled: true,
-                  fillColor: Colors.grey,
+                  fillColor: Colors.white,
                 ),
                 style: const TextStyle(fontSize: 24),
                 textCapitalization: TextCapitalization.words,
@@ -222,7 +222,7 @@ class CaregiverRegistrationScreenState extends State<CaregiverRegistrationScreen
                     fontSize: 20,
                   ),
                   filled: true,
-                  fillColor: Colors.grey,
+                  fillColor: Colors.white,
                 ),
                 style: const TextStyle(fontSize: 24),
                 keyboardType: TextInputType.phone,
@@ -233,41 +233,11 @@ class CaregiverRegistrationScreenState extends State<CaregiverRegistrationScreen
                 ],
                 enabled: _isEditing,
               ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _relationController,
-                decoration: const InputDecoration(
-                  labelText: 'Relação com o Usuário (opcional)',
-                  border: OutlineInputBorder(),
-                  labelStyle: TextStyle(
-                    color: Color.fromRGBO(0, 85, 128, 1),
-                    fontSize: 20,
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey,
-                ),
-                style: const TextStyle(fontSize: 24),
-                textCapitalization: TextCapitalization.sentences,
-                enabled: _isEditing,
-              ),
+              
               const SizedBox(height: 80),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[600],
-                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                    ),
-                    child: const Text(
-                      'Pular',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                      ),
-                    ),
-                  ),
                   ElevatedButton(
                     onPressed: _isEditing ? _validateAndSave : _toggleEditing,
                     style: ElevatedButton.styleFrom(

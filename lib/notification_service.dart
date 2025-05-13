@@ -3,13 +3,13 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'screens/full_screen_notification.dart'; // Importa a nova tela de notificação
+import 'screens/full_screen_notification.dart';
 import 'dart:typed_data';
 import 'package:path/path.dart' as path;
 import 'package:flutter/scheduler.dart' hide Priority;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart' as notifications;
-import 'dart:async'; // Para usar Timer
-
+import 'dart:async';
+import 'package:timezone/timezone.dart' as tz;
 
 // Conjunto global para rastrear IDs de notificações processadas
 final _processedNotificationIds = <int>{};
@@ -67,7 +67,7 @@ Future<void> handleNotificationResponse(NotificationResponse response) async {
         final navigatorState = NotificationService.navigatorKey.currentState;
         if (navigatorState != null) {
           print('DEBUG: NavigatorState disponível, estado do app: ${WidgetsBinding.instance.lifecycleState}');
-          await Future.delayed(Duration(milliseconds: 500)); // Atraso para contexto
+          await Future.delayed(Duration(milliseconds: 500));
           SchedulerBinding.instance.scheduleFrameCallback((_) async {
             print('DEBUG: Executando navegação após frame');
             final database = await _initDatabase();
@@ -96,12 +96,12 @@ Future<void> handleNotificationResponse(NotificationResponse response) async {
 
         if (medication.isNotEmpty) {
           print('DEBUG: Medicamento encontrado: $medication');
-          final horario = (medication[0]['horarios'] as String).split(',')[0]; // Usa o primeiro horário
+          final horario = (medication[0]['horarios'] as String).split(',')[0];
           print('DEBUG: Preparando navegação para FullScreenNotification com medicationId: ${response.payload}');
           final navigatorState = NotificationService.navigatorKey.currentState;
           if (navigatorState != null) {
             print('DEBUG: NavigatorState disponível, estado do app: ${WidgetsBinding.instance.lifecycleState}');
-            await Future.delayed(Duration(milliseconds: 500)); // Atraso para contexto
+            await Future.delayed(Duration(milliseconds: 500));
             SchedulerBinding.instance.scheduleFrameCallback((_) async {
               print('DEBUG: Executando navegação após frame');
               await navigatorState.push(
@@ -125,7 +125,6 @@ Future<void> handleNotificationResponse(NotificationResponse response) async {
     } catch (e) {
       print('DEBUG: ERRO ao processar notificação: $e');
     } finally {
-      // Limpar IDs processados após um tempo para evitar acúmulo
       Future.delayed(Duration(minutes: 1), () => _processedNotificationIds.remove(response.id));
     }
   } else {
@@ -133,15 +132,13 @@ Future<void> handleNotificationResponse(NotificationResponse response) async {
   }
 }
 
-
-
-
-class NotificationService {  
+class NotificationService {
   static final NotificationService _notificationService = NotificationService._internal();
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>(); // Chave para navegação
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+  // ignore: non_constant_identifier_names
+  static bool _isFullScreenNotificationOpen = false;
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   Database? _database;
-  
 
   factory NotificationService() {
     return _notificationService;
@@ -149,8 +146,6 @@ class NotificationService {
 
   NotificationService._internal();
 
-
-  
   Future<void> init(Database db) async {
     print('DEBUG: Iniciando NotificationService');
     _database = db;
@@ -179,7 +174,6 @@ class NotificationService {
 
       final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin != null) {
-        // Criar grupo de canais
         await androidPlugin.createNotificationChannelGroup(
           const AndroidNotificationChannelGroup(
             'medication_group',
@@ -189,7 +183,6 @@ class NotificationService {
         );
         print('DEBUG: Grupo de canais medication_group criado');
 
-        // Criar canal único para notificações imediatas e agendadas
         await androidPlugin.createNotificationChannel(
           const AndroidNotificationChannel(
             'medication_channel',
@@ -201,12 +194,11 @@ class NotificationService {
             enableVibration: true,
             enableLights: true,
             showBadge: true,
-            groupId: 'medication_group', // Associa ao grupo criado
+            groupId: 'medication_group',
           ),
         );
         print('DEBUG: Canal de notificação medication_channel criado');
 
-        // Verificar e solicitar permissões
         bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
         print('DEBUG: Permissão de notificação concedida: $notificationsGranted');
         if (notificationsGranted == null || !notificationsGranted) {
@@ -226,7 +218,6 @@ class NotificationService {
       print('DEBUG: Erro ao inicializar NotificationService: $e');
     }
   }
-
 
   Future<void> showNotification({
     required int id,
@@ -254,11 +245,10 @@ class NotificationService {
         fullScreenIntent: true,
         timeoutAfter: null,
         category: AndroidNotificationCategory.alarm,
-        additionalFlags: Int32List.fromList([4]), // Flag para repetir som (FLAG_INSISTENT)
+        additionalFlags: Int32List.fromList([4]),
       );
       final notificationDetails = NotificationDetails(android: androidDetails);
 
-      // Adicionar sufixo ao payload para indicar que o fallback será usado
       final modifiedPayload = payload.isNotEmpty ? '$payload|fallback' : payload;
 
       await _notificationsPlugin.show(
@@ -266,9 +256,9 @@ class NotificationService {
         title,
         body,
         notificationDetails,
-        payload: modifiedPayload, // Usar o payload modificado
+        payload: modifiedPayload,
       );
-      // Fallback para exibir FullScreenNotification diretamente
+
       if (navigatorKey.currentState != null && payload.isNotEmpty) {
         final payloadParts = payload.split('|');
         if (payloadParts.length >= 2) {
@@ -281,6 +271,10 @@ class NotificationService {
                 horario: horario,
                 medicationIds: medicationIds,
                 database: _database!,
+                onClose: () {
+                  _isFullScreenNotificationOpen = false;
+                  print('DEBUG: FullScreenNotification fechada');
+                },
               ),
             ),
           );
@@ -313,25 +307,69 @@ class NotificationService {
       return;
     }
 
-    // Usar Timer para simular o agendamento
+    // Agendar notificação nativa como fallback para segundo plano
+    try {
+      final androidDetails = AndroidNotificationDetails(
+        'medication_channel',
+        'Lembrete de Medicamento',
+        channelDescription: 'Notificações para lembretes de medicamentos',
+        importance: Importance.max,
+        priority: notifications.Priority.max,
+        sound: RawResourceAndroidNotificationSound(sound),
+        playSound: true,
+        showWhen: true,
+        visibility: NotificationVisibility.public,
+        enableVibration: true,
+        enableLights: true,
+        autoCancel: false,
+        ongoing: true,
+        fullScreenIntent: true,
+        timeoutAfter: null,
+        category: AndroidNotificationCategory.alarm,
+        additionalFlags: Int32List.fromList([4]),
+      );
+      final notificationDetails = NotificationDetails(android: androidDetails);
+
+      final localTimezone = tz.getLocation('America/Sao_Paulo'); // Ajuste para seu fuso horário
+      final tzScheduledTime = tz.TZDateTime.from(scheduledTime, localTimezone);
+
+      await _notificationsPlugin.zonedSchedule(
+        id,
+        title,
+        body ?? 'Você tem medicamentos para tomar',
+        tzScheduledTime,
+        notificationDetails,
+        payload: payload,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      );
+      print('DEBUG: Notificação nativa agendada como fallback com zonedSchedule');
+    } catch (e) {
+      print('DEBUG: Erro ao agendar notificação nativa: $e');
+    }
+
+    // Manter Timer para primeiro plano
     Timer(Duration(milliseconds: delay), () async {
       print('DEBUG: Timer disparado, exibindo FullScreenNotification');
+      if (_isFullScreenNotificationOpen) {
+        print('DEBUG: FullScreenNotification já aberta, ignorando nova navegação');
+        return;
+      }
+
       AudioPlayer? player;
       try {
-        // Tocar o som do alarme
         player = AudioPlayer();
-        await player.setSource(AssetSource('sounds/$sound.mp3')); // Corrigido para sounds/
+        await player.setSource(AssetSource('sounds/$sound.mp3'));
         await player.setVolume(1.0);
-        await player.setReleaseMode(ReleaseMode.loop); // Repetir o som
+        await player.setReleaseMode(ReleaseMode.loop);
         await player.resume();
         print('DEBUG: Som do alarme iniciado');
       } catch (e) {
         print('DEBUG: Erro ao tocar o som: $e');
-        player = null; // Continuar mesmo se o som falhar
+        player = null;
       }
 
       try {
-        // Navegar diretamente para FullScreenNotification
         final navigatorState = navigatorKey.currentState;
         if (navigatorState != null && payload.isNotEmpty) {
           final payloadParts = payload.split('|');
@@ -339,7 +377,8 @@ class NotificationService {
             final horario = payloadParts[0];
             final medicationIds = payloadParts[1].split(',');
             print('DEBUG: Navegando para FullScreenNotification com horario: $horario, medicationIds: $medicationIds');
-            await Future.delayed(Duration(milliseconds: 500)); // Atraso para contexto
+            _isFullScreenNotificationOpen = true;
+            await Future.delayed(Duration(milliseconds: 500));
             SchedulerBinding.instance.scheduleFrameCallback((_) async {
               print('DEBUG: Executando navegação após frame');
               await navigatorState.push(
@@ -349,6 +388,13 @@ class NotificationService {
                     medicationIds: medicationIds,
                     database: _database!,
                     audioPlayer: player,
+                    onClose: () {
+                      _isFullScreenNotificationOpen = false;
+                      print('DEBUG: FullScreenNotification fechada');
+                      // Cancelar notificação nativa após fechar
+                      _notificationsPlugin.cancel(id);
+                      print('DEBUG: Notificação nativa ID $id cancelada após fechar FullScreenNotification');
+                    },
                   ),
                 ),
               );
@@ -364,13 +410,13 @@ class NotificationService {
         }
       } catch (e) {
         print('DEBUG: Erro ao navegar para FullScreenNotification: $e');
+        _isFullScreenNotificationOpen = false;
         if (player != null) await player.stop();
       }
     });
 
     print('DEBUG: Agendamento configurado com sucesso');
   }
-
 
   Future<void> stopNotificationSound(int id) async {
     print('DEBUG: Parando som da notificação com id: $id');
@@ -395,6 +441,4 @@ class NotificationService {
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
     return await _notificationsPlugin.pendingNotificationRequests();
   }
-
 }
-
