@@ -307,47 +307,49 @@ class NotificationService {
       return;
     }
 
-    // Agendar notificação nativa como fallback para segundo plano
-    try {
-      final androidDetails = AndroidNotificationDetails(
-        'medication_channel',
-        'Lembrete de Medicamento',
-        channelDescription: 'Notificações para lembretes de medicamentos',
-        importance: Importance.max,
-        priority: notifications.Priority.max,
-        sound: RawResourceAndroidNotificationSound(sound),
-        playSound: true,
-        showWhen: true,
-        visibility: NotificationVisibility.public,
-        enableVibration: true,
-        enableLights: true,
-        autoCancel: false,
-        ongoing: true,
-        fullScreenIntent: true,
-        timeoutAfter: null,
-        category: AndroidNotificationCategory.alarm,
-        additionalFlags: Int32List.fromList([4]),
-      );
-      final notificationDetails = NotificationDetails(android: androidDetails);
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      print('DEBUG: App em primeiro plano, pulando notificação nativa');
+    } else {  
+      try {
+        final androidDetails = AndroidNotificationDetails(
+          'medication_channel',
+          'Lembrete de Medicamento',
+          channelDescription: 'Notificações para lembretes de medicamentos',
+          importance: Importance.max,
+          priority: notifications.Priority.max,
+          sound: RawResourceAndroidNotificationSound(sound),
+          playSound: true,
+          showWhen: true,
+          visibility: NotificationVisibility.public,
+          enableVibration: true,
+          enableLights: true,
+          autoCancel: false,
+          ongoing: true,
+          fullScreenIntent: true,
+          timeoutAfter: null,
+          category: AndroidNotificationCategory.alarm,
+          additionalFlags: Int32List.fromList([4]),
+        );
+        final notificationDetails = NotificationDetails(android: androidDetails);
 
-      final localTimezone = tz.getLocation('America/Sao_Paulo'); // Ajuste para seu fuso horário
-      final tzScheduledTime = tz.TZDateTime.from(scheduledTime, localTimezone);
+        final localTimezone = tz.getLocation('America/Sao_Paulo'); // Ajuste para seu fuso horário
+        final tzScheduledTime = tz.TZDateTime.from(scheduledTime, localTimezone);
 
-      await _notificationsPlugin.zonedSchedule(
-        id,
-        title,
-        body ?? 'Você tem medicamentos para tomar',
-        tzScheduledTime,
-        notificationDetails,
-        payload: payload,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-      );
-      print('DEBUG: Notificação nativa agendada como fallback com zonedSchedule');
-    } catch (e) {
-      print('DEBUG: Erro ao agendar notificação nativa: $e');
+        await _notificationsPlugin.zonedSchedule(
+          id,
+          title,
+          body ?? 'Você tem medicamentos para tomar',
+          tzScheduledTime,
+          notificationDetails,
+          payload: payload,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        );
+        print('DEBUG: Notificação nativa agendada como fallback com zonedSchedule');
+      } catch (e) {
+        print('DEBUG: Erro ao agendar notificação nativa: $e');
+      }
     }
-
     // Manter Timer para primeiro plano
     Timer(Duration(milliseconds: delay), () async {
       print('DEBUG: Timer disparado, exibindo FullScreenNotification');
@@ -371,7 +373,7 @@ class NotificationService {
 
       try {
         final navigatorState = navigatorKey.currentState;
-        if (navigatorState != null && payload.isNotEmpty) {
+        if (navigatorState != null && WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed && payload.isNotEmpty) {
           final payloadParts = payload.split('|');
           if (payloadParts.length >= 2) {
             final horario = payloadParts[0];
@@ -387,7 +389,7 @@ class NotificationService {
                     horario: horario,
                     medicationIds: medicationIds,
                     database: _database!,
-                    audioPlayer: player,
+                    audioPlayer: player, // Ainda passa o player, mas sem tocar
                     onClose: () {
                       _isFullScreenNotificationOpen = false;
                       print('DEBUG: FullScreenNotification fechada');
@@ -405,7 +407,7 @@ class NotificationService {
             if (player != null) await player.stop();
           }
         } else {
-          print('DEBUG: ERRO: NavigatorState é nulo');
+          print('DEBUG: ERRO: NavigatorState nulo ou app não está em primeiro plano');
           if (player != null) await player.stop();
         }
       } catch (e) {

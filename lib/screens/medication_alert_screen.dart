@@ -58,17 +58,15 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
   void _checkAndCloseIfDone() {
     bool allProcessed = true;
     for (int i = 0; i < medications.length; i++) {
-      if (!isTaken[i] && !isSkipped[i] && medications[i].isNotEmpty) {
+      if (medications[i].isNotEmpty) {
         allProcessed = false;
         break;
       }
     }
+    print('DEBUG: Medicamentos restantes: ${medications.length}');
     if (allProcessed && mounted) {
-      Future.delayed(const Duration(seconds: 5), () {
-        if (mounted) {
-          Navigator.pop(context);
-        }
-      });
+      print('DEBUG: Todos os medicamentos processados, fechando MedicationAlertScreen');
+      Navigator.pop(context);
     }
   }
 
@@ -117,9 +115,9 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
 
     _delayTimer?.cancel();
 
-    _delayTimer = Timer(Duration(seconds: 5), () async {
+    _delayTimer = Timer(Duration(seconds: 10), () async {
       final recentDelays = _pendingDelays.where((delay) {
-        return now.difference(delay['timestamp'] as DateTime).inSeconds <= 5;
+        return now.difference(delay['timestamp'] as DateTime).inSeconds <= 10;
       }).toList();
 
       final medicationIds = recentDelays
@@ -128,25 +126,32 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
           .toList();
 
       if (medicationIds.isNotEmpty) {
-        final newTime = DateTime.now().add(Duration(minutes: 15)); // Calcular newTime aqui
+        final newTime = DateTime.now().add(Duration(seconds: 30));
         final payload = '${widget.horario}|${medicationIds.join(',')}';
-        await notificationService.scheduleNotification(
-          id: DateTime.now().millisecondsSinceEpoch % 10000,
-          title: 'Alerta de Medicamento: ${widget.horario}',
-          body: 'Você tem ${medicationIds.length} medicamentos para tomar',
-          payload: payload,
-          sound: 'alarm',
-          scheduledTime: newTime,
-        );
-        print('DEBUG: Notificação unificada agendada para ${medicationIds.length} medicamentos: $medicationIds');
+        final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
+
+        try {
+          await notificationService.scheduleNotification(
+            id: notificationId,
+            title: 'Alerta de Medicamento: ${widget.horario}',
+            body: 'Você tem ${medicationIds.length} medicamentos adiados para tomar',
+            payload: payload,
+            sound: 'alarm',
+            scheduledTime: newTime,
+          );
+          print('DEBUG: Notificação unificada agendada para ${medicationIds.length} medicamentos: $medicationIds');
+
+          // Atualizar a lista de medicamentos
+          setState(() {
+            medications.removeWhere((m) => medicationIds.contains(m['id'].toString()));
+            _checkAndCloseIfDone();
+          });
+        } catch (e) {
+          print('DEBUG: Erro ao agendar notificação unificada: $e');
+        }
       }
 
       _pendingDelays.clear();
-    });
-
-    setState(() {
-      medications[index] = <String, dynamic>{};
-      _checkAndCloseIfDone();
     });
   }
 
