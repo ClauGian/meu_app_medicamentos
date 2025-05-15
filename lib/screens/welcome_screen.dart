@@ -85,14 +85,7 @@ class WelcomeScreen extends StatelessWidget {
                       where: 'horarios LIKE ?',
                       whereArgs: ['%08:00%'],
                     );
-                    // Atualiza cuidador_id e reseta skip_count para medicamentos com horário 08:00
-                    //await database.update(
-                    //  'medications',
-                    //  {'cuidador_id': '123', 'skip_count': 0},
-                    //  where: 'horarios LIKE ?',
-                    //  whereArgs: ['%08:00%'],
-                    //);                    
-                    print('DEBUG: Medicamentos carregados do banco: $medications'); // Log para inspecionar cuidador_id
+                    print('DEBUG: Medicamentos carregados do banco: $medications');
                     if (medications.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Nenhum medicamento encontrado para 08:00!')),
@@ -103,6 +96,7 @@ class WelcomeScreen extends StatelessWidget {
                     // Extrai os IDs dos medicamentos
                     final medicationIds = medications.map((med) => med['id'].toString()).toList();
                     final payload = medicationIds.join(',');
+                    print('DEBUG: Payload gerado: 08:00|$payload'); // Novo log para verificar o payload
 
                     // Gera um ID único baseado no timestamp
                     final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
@@ -112,7 +106,7 @@ class WelcomeScreen extends StatelessWidget {
 
                     // Agenda uma única notificação para o horário "08:00"
                     await notificationService.scheduleNotification(
-                      id: DateTime.now().millisecondsSinceEpoch % 10000,
+                      id: notificationId,
                       title: 'Alerta de Medicamento: 08:00',
                       body: 'Você tem ${medicationIds.length} medicamentos para tomar',
                       sound: 'alarm',
