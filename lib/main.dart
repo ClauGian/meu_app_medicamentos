@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'screens/welcome_screen.dart';
-import 'notification_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
+import 'package:audioplayers/audioplayers.dart';
+import 'screens/welcome_screen.dart';
+import 'screens/full_screen_notification.dart';
+import 'notification_service.dart';
 
 Future<Database> _initDatabase() async {
   final dbPath = await getDatabasesPath();
   final pathName = path.join(dbPath, 'medications.db');
   final database = await openDatabase(
     pathName,
-    version: 3, // Incrementado para suportar a nova coluna 'date'
+    version: 3,
     onCreate: (db, version) async {
       await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
       await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, date TEXT)');
@@ -41,18 +44,31 @@ Future<Database> _initDatabase() async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Inicializar banco de dados em uma tarefa isolada
-  final database = await Future.microtask(_initDatabase);
-  // Inicializar NotificationService em uma tarefa isolada
-  await Future.microtask(() => NotificationService().init(database));
+  final database = await _initDatabase();
+  final notificationService = NotificationService();
+  await notificationService.init(database);
   print('DEBUG: NotificationService inicializado com sucesso');
-  runApp(MyApp(database: database));
+  
+  final initialNotification = await notificationService.getInitialNotification();
+  
+  runApp(MyApp(
+    database: database,
+    initialNotification: initialNotification,
+    notificationService: notificationService,
+  ));
 }
 
 class MyApp extends StatelessWidget {
   final Database database;
+  final NotificationResponse? initialNotification;
+  final NotificationService notificationService;
 
-  const MyApp({super.key, required this.database});
+  const MyApp({
+    super.key,
+    required this.database,
+    this.initialNotification,
+    required this.notificationService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +79,30 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFFF0F0F0),
       ),
-      home: WelcomeScreen(database: database),
+      home: initialNotification != null && initialNotification!.payload != null
+          ? Builder(
+              builder: (context) {
+                final payload = initialNotification!.payload!;
+                if (payload.contains('|')) {
+                  final parts = payload.split('|');
+                  final horario = parts[0];
+                  final medicationIds = parts[1].split(',');
+                  final audioPlayer = AudioPlayer();
+                  return FullScreenNotification(
+                    horario: horario,
+                    medicationIds: medicationIds,
+                    database: database,
+                    audioPlayer: audioPlayer,
+                    onClose: () {
+                      audioPlayer.stop();
+                      notificationService.cancelNotification(initialNotification!.id!);
+                    },
+                  );
+                }
+                return WelcomeScreen(database: database);
+              },
+            )
+          : WelcomeScreen(database: database),
     );
   }
 }
