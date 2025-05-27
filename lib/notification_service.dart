@@ -143,6 +143,29 @@ class NotificationService {
   }
 
 
+  Future<NotificationResponse?> getInitialNotification() async {
+    print('DEBUG: Verificando notificação inicial');
+    try {
+      final details = await _notificationsPlugin.getNotificationAppLaunchDetails();
+      if (details != null && details.didNotificationLaunchApp && details.notificationResponse != null) {
+        print('DEBUG: Notificação inicial encontrada: ${details.notificationResponse!.payload}');
+        return details.notificationResponse;
+      }
+      print('DEBUG: Nenhuma notificação inicial encontrada');
+      return null;
+    } catch (e) {
+      print('DEBUG: Erro ao obter notificação inicial: $e');
+      return null;
+    }
+  }
+
+  
+
+  Future<void> cancelNotification(int id) async {
+    await stopNotificationSound(id);
+  }
+
+
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
     print('DEBUG: Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
     if (response.payload == null || response.id == null) {
