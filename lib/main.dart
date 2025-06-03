@@ -7,67 +7,61 @@ import 'screens/welcome_screen.dart';
 import 'screens/full_screen_notification.dart';
 import 'notification_service.dart';
 
-Future<Database> _initDatabase() async {
+Future<Database> initDatabase() async {
+  print('DEBUG: Iniciando _initDatabase');
   final dbPath = await getDatabasesPath();
   final pathName = path.join(dbPath, 'medications.db');
-  final database = await openDatabase(
-    pathName,
-    version: 3,
-    onCreate: (db, version) async {
-      await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
-      await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, date TEXT)');
-      await db.execute('CREATE TABLE IF NOT EXISTS caregivers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)');
-      print("DEBUG: Criação das tabelas concluída.");
-    },
-    onUpgrade: (db, oldVersion, newVersion) async {
-      if (oldVersion < 2) {
-        await db.execute('ALTER TABLE medications RENAME TO medications_old');
+  try {
+    final database = await openDatabase(
+      pathName,
+      version: 3,
+      onCreate: (db, version) async {
         await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
-        await db.execute('INSERT INTO medications (id, nome, quantidade, dosagem_diaria, tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id) SELECT id, nome, COALESCE(quantidade, 0), COALESCE(dosagem_diaria, 0), tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id FROM medications_old');
-        await db.execute('DROP TABLE medications_old');
-        print("DEBUG: Migração para versão 2 concluída.");
-      }
-      if (oldVersion < 3) {
-        await db.execute('ALTER TABLE users ADD COLUMN date TEXT');
-        print("DEBUG: Coluna date adicionada à tabela users.");
-      }
-    },
-  );
-
-  if (!database.isOpen) {
-    throw Exception("Erro: Banco de dados não está aberto.");
+        await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, date TEXT)');
+        await db.execute('CREATE TABLE IF NOT EXISTS caregivers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)');
+        print("DEBUG: Criação das tabelas concluída.");
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE medications RENAME TO medications_old');
+          await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
+          await db.execute('INSERT INTO medications (id, nome, quantidade, dosagem_diaria, tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id) SELECT id, nome, COALESCE(quantidade, 0), COALESCE(dosagem_diaria, 0), tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id FROM medications_old');
+          await db.execute('DROP TABLE medications_old');
+          print("DEBUG: Migração para versão 2 concluída.");
+        }
+        if (oldVersion < 3) {
+          await db.execute('ALTER TABLE users ADD COLUMN date TEXT');
+          print("DEBUG: Coluna date adicionada à tabela users.");
+        }
+      },
+    );
+    if (!database.isOpen) {
+      throw Exception("Erro: Banco de dados não está aberto.");
+    }
+    try {
+      await database.rawQuery('PRAGMA journal_mode=WAL;');
+      print('DEBUG: Configuração PRAGMA journal_mode=WAL concluída');
+    } catch (e) {
+      print('DEBUG: Erro ao configurar PRAGMA journal_mode=WAL: $e');
+    }
+    print("DEBUG: openDatabase concluído: $database");
+    return database;
+  } catch (e) {
+    print('DEBUG: Erro ao inicializar banco de dados: $e');
+    rethrow;
   }
-
-  print("openDatabase concluído: $database");
-  return database;
-}
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  final database = await _initDatabase();
-  final notificationService = NotificationService();
-  await notificationService.init(database);
-  print('DEBUG: NotificationService inicializado com sucesso');
-  
-  final initialNotification = await notificationService.getInitialNotification();
-  
-  runApp(MyApp(
-    database: database,
-    initialNotification: initialNotification,
-    notificationService: notificationService,
-  ));
 }
 
 class MyApp extends StatelessWidget {
-  final Database database;
-  final NotificationResponse? initialNotification;
+  final Database? database;
   final NotificationService notificationService;
+  final Widget initialScreen;
 
   const MyApp({
     super.key,
     required this.database,
-    this.initialNotification,
     required this.notificationService,
+    required this.initialScreen,
   });
 
   @override
@@ -79,30 +73,126 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFFF0F0F0),
       ),
-      home: initialNotification != null && initialNotification!.payload != null
-          ? Builder(
-              builder: (context) {
-                final payload = initialNotification!.payload!;
-                if (payload.contains('|')) {
-                  final parts = payload.split('|');
-                  final horario = parts[0];
-                  final medicationIds = parts[1].split(',');
-                  final audioPlayer = AudioPlayer();
-                  return FullScreenNotification(
-                    horario: horario,
-                    medicationIds: medicationIds,
-                    database: database,
-                    audioPlayer: audioPlayer,
-                    onClose: () {
-                      audioPlayer.stop();
-                      notificationService.cancelNotification(initialNotification!.id!);
-                    },
-                  );
-                }
-                return WelcomeScreen(database: database);
-              },
-            )
-          : WelcomeScreen(database: database),
+      home: initialScreen,
     );
+  }
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  print('DEBUG: Iniciando main');
+
+  // Tela de carregamento inicial
+  runApp(const MaterialApp(
+    home: Scaffold(
+      body: Center(child: CircularProgressIndicator()),
+    ),
+  ));
+
+  try {
+    final notificationService = NotificationService();
+    final notification = await notificationService.getInitialNotification();
+    Widget initialScreen;
+    Future<Database>? databaseFuture;
+
+    Future<Database> getDatabase() async {
+      databaseFuture ??= initDatabase();
+      return databaseFuture!;
+    }
+
+    if (notification != null && notification.payload != null) {
+      final database = await getDatabase();
+      await Future.delayed(const Duration(milliseconds: 100)); // Aliviar thread principal
+      await notificationService.init(database);
+      print('DEBUG: NotificationService inicializado para notificação inicial');
+      final payload = notification.payload!;
+      if (payload.contains('|')) {
+        final parts = payload.split('|');
+        final horario = parts[0];
+        final medicationIds = parts[1].split(',');
+        final audioPlayer = AudioPlayer();
+        try {
+          await audioPlayer.setSource(AssetSource('sounds/alarm.mp3'));
+          await audioPlayer.setVolume(1.0);
+          await audioPlayer.setReleaseMode(ReleaseMode.loop);
+          await audioPlayer.resume();
+          print('DEBUG: Som do alarme iniciado para notificação inicial');
+        } catch (e) {
+          print('DEBUG: Erro ao iniciar AudioPlayer: $e');
+        }
+        initialScreen = FullScreenNotification(
+          horario: horario,
+          medicationIds: medicationIds,
+          database: database,
+          audioPlayer: audioPlayer,
+          onClose: () {
+            audioPlayer.stop();
+            notificationService.cancelNotification(notification.id!);
+            print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
+          },
+        );
+      } else {
+        initialScreen = FutureBuilder<Database>(
+          future: getDatabase(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            } else if (snapshot.hasError) {
+              print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
+              return const Scaffold(
+                body: Center(child: Text('Erro ao carregar o aplicativo.')),
+              );
+            } else {
+              return WelcomeScreen(
+                database: snapshot.data!,
+                notificationService: notificationService,
+              );
+            }
+          },
+        );
+      }
+    } else {
+      await Future.delayed(const Duration(milliseconds: 100)); // Aliviar thread principal
+      final database = await getDatabase();
+      await notificationService.init(database);
+      print('DEBUG: NotificationService inicializado com sucesso');
+      initialScreen = FutureBuilder<Database>(
+        future: getDatabase(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          } else if (snapshot.hasError) {
+            print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
+            return const Scaffold(
+              body: Center(child: Text('Erro ao carregar o aplicativo.')),
+            );
+          } else {
+            return WelcomeScreen(
+              database: snapshot.data!,
+              notificationService: notificationService,
+            );
+          }
+        },
+      );
+    }
+
+    runApp(MyApp(
+      database: null, // Não passa o database diretamente, usa FutureBuilder
+      notificationService: notificationService,
+      initialScreen: initialScreen,
+    ));
+  } catch (e) {
+    print('DEBUG: Erro durante inicialização do aplicativo: $e');
+    runApp(const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text('Erro ao inicializar o aplicativo. Tente novamente.'),
+        ),
+      ),
+    ));
   }
 }

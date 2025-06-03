@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart'; 
+import 'home_screen.dart';
 import 'package:sqflite/sqflite.dart';
 import '../notification_service.dart';
 
 class WelcomeScreen extends StatelessWidget {
   final Database database;
-  final NotificationService notificationService = NotificationService();
+  final NotificationService notificationService;
 
-  WelcomeScreen({super.key, required this.database});
+  const WelcomeScreen({
+    super.key,
+    required this.database,
+    required this.notificationService,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +83,6 @@ class WelcomeScreen extends StatelessWidget {
               ElevatedButton(
                 onPressed: () async {
                   try {
-                    // Busca todos os medicamentos com o horário "08:00"
                     final medications = await database.query(
                       'medications',
                       where: 'horarios LIKE ?',
@@ -88,33 +91,28 @@ class WelcomeScreen extends StatelessWidget {
                     print('DEBUG: Medicamentos carregados do banco: $medications');
                     if (medications.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Nenhum medicamento encontrado para 08:00!')),
+                        const SnackBar(content: Text('Nenhum medicamento encontrado para 08:00!')),
                       );
                       return;
                     }
 
-                    // Extrai os IDs dos medicamentos
                     final medicationIds = medications.map((med) => med['id'].toString()).toList();
-                    final payload = medicationIds.join(',');
-                    print('DEBUG: Payload gerado: 08:00|$payload'); // Novo log para verificar o payload
+                    final payload = '08:00|${medicationIds.join(',')}'; // Corrigido para 08:00|1,2
+                    print('DEBUG: Payload gerado: $payload');
 
-                    // Gera um ID único baseado no timestamp
                     final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
 
-                    // Cancela todas as notificações pendentes
-                    await NotificationService().cancelAllNotifications();
+                    await notificationService.cancelAllNotifications();
 
-                    // Agenda uma única notificação para o horário "08:00"
                     await notificationService.scheduleNotification(
                       id: notificationId,
                       title: 'Alerta de Medicamento: 08:00',
                       body: 'Você tem ${medicationIds.length} medicamentos para tomar',
                       sound: 'alarm',
-                      payload: '08:00|$payload', // Formato: "horario|id1,id2,id3"
-                      scheduledTime: DateTime.now().add(Duration(seconds: 30)),
+                      payload: payload,
+                      scheduledTime: DateTime.now().add(const Duration(seconds: 30)),
                     );
 
-                    // Verifica notificações pendentes imediatamente após agendamento
                     final pendingNotifications = await notificationService.getPendingNotifications();
                     print('DEBUG: Notificações pendentes imediatamente após agendamento: ${pendingNotifications.length}');
                     for (var notification in pendingNotifications) {
@@ -122,7 +120,7 @@ class WelcomeScreen extends StatelessWidget {
                     }
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Teste iniciado: notificação agendada para 08:00 (30s)!')),
+                      const SnackBar(content: Text('Teste iniciado: notificação agendada para 08:00 (30s)!')),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -135,7 +133,7 @@ class WelcomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
                 ),
                 child: const Text(
-                  "Testar Notificação",
+                  'Testar Notificação',
                   style: TextStyle(fontSize: 24, color: Colors.white),
                 ),
               )
