@@ -66,75 +66,6 @@ class NotificationService {
 
       bool? fullScreenIntentGranted = await androidPlugin.requestFullScreenIntentPermission();
       print('DEBUG: Permissão de tela cheia concedida (inicial): $fullScreenIntentGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-      // Forçar diálogo com atraso para garantir que o navigatorKey esteja pronto
-      print('DEBUG: Agendando diálogo de permissão de tela cheia com atraso');
-      Future.delayed(const Duration(milliseconds: 500), () async {
-        if (navigatorKey.currentContext != null) {
-          print('DEBUG: Exibindo diálogo de permissão de tela cheia');
-          bool permissionConfirmed = false;
-          await showDialog(
-            context: navigatorKey.currentContext!,
-            barrierDismissible: false,
-            builder: (context) => AlertDialog(
-              title: const Text('Permissão de Tela Cheia Necessária'),
-              content: const Text(
-                'Para exibir alertas de medicamentos em tela cheia, conceda a permissão nas configurações. No Redmi (MIUI), ative "Exibir pop-ups" e "Notificações em tela de bloqueio" em Configurações > Aplicativos > [Seu App] > Outras permissões.'
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () async {
-                    print('DEBUG: Usuário abriu configurações para permissão de tela cheia');
-                    await AppSettingsPlus.openAppSettings();
-                    // Verificar novamente após abrir configurações
-                    bool? rechecked = await androidPlugin.requestFullScreenIntentPermission();
-                    print('DEBUG: Permissão de tela cheia após configurações: $rechecked');
-                    if (rechecked == true) {
-                      permissionConfirmed = true;
-                    }
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Configurações'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    print('DEBUG: Usuário cancelou o diálogo de permissão de tela cheia');
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Cancelar'),
-                ),
-              ],
-            ),
-          );
-          // Se a permissão não foi confirmada, exibir diálogo novamente
-          if (!permissionConfirmed && navigatorKey.currentContext != null) {
-            print('DEBUG: Permissão de tela cheia não confirmada, exibindo diálogo novamente');
-            await showDialog(
-              context: navigatorKey.currentContext!,
-              barrierDismissible: false,
-              builder: (context) => AlertDialog(
-                title: const Text('Atenção: Permissão Essencial'),
-                content: const Text(
-                  'A permissão de tela cheia é necessária para alertas de medicamentos. No Redmi (MIUI), ative "Exibir pop-ups" e "Notificações em tela de bloqueio" em Configurações > Aplicativos > [Seu App] > Outras permissões.'
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () async {
-                      print('DEBUG: Usuário abriu configurações novamente para permissão de tela cheia');
-                      await AppSettingsPlus.openAppSettings();
-                      bool? finalCheck = await androidPlugin.requestFullScreenIntentPermission();
-                      print('DEBUG: Permissão de tela cheia após segunda tentativa: $finalCheck');
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('Configurações'),
-                  ),
-                ],
-              ),
-            );
-          }
-        } else {
-          print('DEBUG: navigatorKey.currentContext é nulo após atraso, diálogo de permissão não exibido');
-        }
-      });
 
       await androidPlugin.createNotificationChannelGroup(
         const AndroidNotificationChannelGroup(
@@ -160,7 +91,6 @@ class NotificationService {
           groupId: 'medication_group',
         ),
       );
-      print('DEBUG: Canal de notificação configurado com som: alarm.mp3, FullScreenIntent: true - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
       print('DEBUG: Canal de notificação configurado com som: alarm.mp3 - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
       final initializationSettings = const InitializationSettings(
@@ -267,7 +197,7 @@ class NotificationService {
       const platform = MethodChannel('com.claudinei.medialerta/fullscreen');
       await platform.invokeMethod('showFullScreenAlarm', {
         'title': title,
-        'body': payload, // Usar payload (horario|medicationIds)
+        'body': payload, // Passar payload (horario|medicationIds) em vez de body
       });
       print('DEBUG: FullScreenAlarmActivity chamada via MethodChannel');
     } catch (e) {

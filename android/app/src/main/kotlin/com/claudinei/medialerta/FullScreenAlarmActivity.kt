@@ -2,57 +2,47 @@ package com.claudinei.medialerta
 
 import android.media.MediaPlayer
 import android.os.Bundle
-import android.widget.Button
-import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
-import android.content.Intent
 import android.view.WindowManager
+import androidx.appcompat.app.AppCompatActivity
+import android.widget.Button
+import android.content.Intent
+import android.view.View
 
 class FullScreenAlarmActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_full_screen_alarm)
 
-        // Configurar flags para tela cheia, mesmo com a tela bloqueada
         window.addFlags(
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
             WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
         )
 
-        // Layout atualizado
-        setContentView(R.layout.activity_full_screen_alarm)
+        playSound()
 
-        // Obter dados do intent
-        val title = intent.getStringExtra("notification_title") ?: "Hora do Medicamento"
-        val payload = intent.getStringExtra("notification_body") ?: "08:00|1,2"
+        val viewButton: Button = findViewById(R.id.view_button)
+        val payload = intent.getStringExtra("body") ?: "08:00|1,2"
+        val parts = payload.split("|")
+        val horario = if (parts.isNotEmpty()) parts[0] else "08:00"
+        val medicationIds = if (parts.size > 1) parts[1] else ""
 
-        // Configurar o texto da tela
-        findViewById<TextView>(R.id.alarm_title).text = title
-
-        // Configurar botão "Ver"
-        findViewById<Button>(R.id.dismiss_button).setOnClickListener {
-            stopSound()
-
-            // Extrair horario e medicationIds do payload
-            val payloadParts = payload.split("|")
-            val horario = if (payloadParts.isNotEmpty()) payloadParts[0] else "08:00"
-            val medicationIds = if (payloadParts.size > 1) payloadParts[1] else ""
-
-            // Navegar para MainActivity com parâmetros para MedicationAlertScreen
+        viewButton.setOnClickListener {
             val intent = Intent(this, MainActivity::class.java).apply {
+                setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 putExtra("route", "medication_alert")
                 putExtra("horario", horario)
                 putExtra("medicationIds", medicationIds)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+            mediaPlayer = null
             startActivity(intent)
             finish()
         }
-
-        // Tocar o som
-        playSound()
     }
 
     private fun playSound() {
@@ -65,18 +55,10 @@ class FullScreenAlarmActivity : AppCompatActivity() {
         }
     }
 
-    private fun stopSound() {
-        try {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
-            mediaPlayer = null
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
     override fun onDestroy() {
         super.onDestroy()
-        stopSound()
+        mediaPlayer?.stop()
+        mediaPlayer?.release()
+        mediaPlayer = null
     }
 }

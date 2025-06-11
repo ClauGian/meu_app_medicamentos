@@ -104,7 +104,10 @@ class WelcomeScreen extends StatelessWidget {
 
                     await notificationService.cancelAllNotifications();
 
-                    // Testar com showNotification em vez de scheduleNotification
+                    print('DEBUG: Aguardando 10 segundos antes de disparar a notificação');
+                    await Future.delayed(const Duration(seconds: 10));
+                    print('DEBUG: Disparando notificação após atraso');
+
                     await notificationService.showNotification(
                       id: notificationId,
                       title: 'Hora do Medicamento',
@@ -120,7 +123,7 @@ class WelcomeScreen extends StatelessWidget {
                     }
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Teste iniciado: notificação exibida!')),
+                      const SnackBar(content: Text('Teste iniciado: notificação agendada para 10 segundos!')),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
