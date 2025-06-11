@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
-import 'package:audioplayers/audioplayers.dart';
 import 'screens/welcome_screen.dart';
-import 'screens/full_screen_notification.dart';
+import 'screens/medication_alert_screen.dart';
 import 'notification_service.dart';
 
 Future<Database> initDatabase() async {
@@ -74,6 +72,35 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF0F0F0),
       ),
       home: initialScreen,
+      onGenerateRoute: (settings) {
+        if (settings.name == 'medication_alert') {
+          final args = settings.arguments as Map<String, dynamic>?;
+          return MaterialPageRoute(
+            builder: (context) => FutureBuilder<Database>(
+              future: initDatabase(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                } else if (snapshot.hasError) {
+                  print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
+                  return const Scaffold(
+                    body: Center(child: Text('Erro ao carregar o aplicativo.')),
+                  );
+                } else {
+                  return MedicationAlertScreen(
+                    horario: args?['horario'] ?? '08:00',
+                    medicationIds: (args?['medicationIds'] as String?)?.split(',') ?? [],
+                    database: snapshot.data!,
+                  );
+                }
+              },
+            ),
+          );
+        }
+        return null;
+      },
     );
   }
 }
@@ -92,13 +119,34 @@ void main() async {
   try {
     final notificationService = NotificationService();
     final notification = await notificationService.getInitialNotification();
-    Widget initialScreen;
     Future<Database>? databaseFuture;
 
     Future<Database> getDatabase() async {
       databaseFuture ??= initDatabase();
       return databaseFuture!;
     }
+
+    // Inicializar initialScreen com um valor padrão
+    Widget initialScreen = FutureBuilder<Database>(
+      future: getDatabase(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        } else if (snapshot.hasError) {
+          print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
+          return const Scaffold(
+            body: Center(child: Text('Erro ao carregar o aplicativo.')),
+          );
+        } else {
+          return WelcomeScreen(
+            database: snapshot.data!,
+            notificationService: notificationService,
+          );
+        }
+      },
+    );
 
     if (notification != null && notification.payload != null) {
       final database = await getDatabase();
@@ -110,74 +158,20 @@ void main() async {
         final parts = payload.split('|');
         final horario = parts[0];
         final medicationIds = parts[1].split(',');
-        final audioPlayer = AudioPlayer();
-        try {
-          await audioPlayer.setSource(AssetSource('sounds/alarm.mp3'));
-          await audioPlayer.setVolume(1.0);
-          await audioPlayer.setReleaseMode(ReleaseMode.loop);
-          await audioPlayer.resume();
-          print('DEBUG: Som do alarme iniciado para notificação inicial');
-        } catch (e) {
-          print('DEBUG: Erro ao iniciar AudioPlayer: $e');
-        }
-        initialScreen = FullScreenNotification(
+        initialScreen = MedicationAlertScreen(
           horario: horario,
           medicationIds: medicationIds,
           database: database,
-          audioPlayer: audioPlayer,
-          onClose: () {
-            audioPlayer.stop();
-            notificationService.cancelNotification(notification.id!);
-            print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
-          },
         );
-      } else {
-        initialScreen = FutureBuilder<Database>(
-          future: getDatabase(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            } else if (snapshot.hasError) {
-              print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
-              return const Scaffold(
-                body: Center(child: Text('Erro ao carregar o aplicativo.')),
-              );
-            } else {
-              return WelcomeScreen(
-                database: snapshot.data!,
-                notificationService: notificationService,
-              );
-            }
-          },
-        );
+        // Cancelar a notificação após exibir a tela
+        notificationService.cancelNotification(notification.id!);
+        print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
       }
     } else {
       await Future.delayed(const Duration(milliseconds: 100)); // Aliviar thread principal
       final database = await getDatabase();
       await notificationService.init(database);
-      print('DEBUG: NotificationService inicializado com sucesso');
-      initialScreen = FutureBuilder<Database>(
-        future: getDatabase(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          } else if (snapshot.hasError) {
-            print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
-            return const Scaffold(
-              body: Center(child: Text('Erro ao carregar o aplicativo.')),
-            );
-          } else {
-            return WelcomeScreen(
-              database: snapshot.data!,
-              notificationService: notificationService,
-            );
-          }
-        },
-      );
+      print('DEBUG: NotificationService inicializado com sucesso no main');
     }
 
     runApp(MyApp(

@@ -97,20 +97,20 @@ class WelcomeScreen extends StatelessWidget {
                     }
 
                     final medicationIds = medications.map((med) => med['id'].toString()).toList();
-                    final payload = '08:00|${medicationIds.join(',')}'; // Corrigido para 08:00|1,2
+                    final payload = '08:00|${medicationIds.join(',')}';
                     print('DEBUG: Payload gerado: $payload');
 
                     final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
 
                     await notificationService.cancelAllNotifications();
 
-                    await notificationService.scheduleNotification(
+                    // Testar com showNotification em vez de scheduleNotification
+                    await notificationService.showNotification(
                       id: notificationId,
-                      title: 'Alerta de Medicamento: 08:00',
-                      body: 'Você tem ${medicationIds.length} medicamentos para tomar',
-                      sound: 'alarm',
+                      title: 'Hora do Medicamento',
+                      body: 'Toque para ver os medicamentos',
+                      sound: 'alarm', 
                       payload: payload,
-                      scheduledTime: DateTime.now().add(const Duration(seconds: 30)),
                     );
 
                     final pendingNotifications = await notificationService.getPendingNotifications();
@@ -120,7 +120,7 @@ class WelcomeScreen extends StatelessWidget {
                     }
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Teste iniciado: notificação agendada para 08:00 (30s)!')),
+                      const SnackBar(content: Text('Teste iniciado: notificação exibida!')),
                     );
                   } catch (e) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -136,7 +136,7 @@ class WelcomeScreen extends StatelessWidget {
                   'Testar Notificação',
                   style: TextStyle(fontSize: 24, color: Colors.white),
                 ),
-              )
+              ),
             ],
           ),
         ),

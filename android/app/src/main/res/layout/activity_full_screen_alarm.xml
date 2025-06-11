@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@drawable/gradient_background">
+
+    <!-- Ícone de alarme -->
+    <ImageView
+        android:id="@+id/alarm_icon"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:src="@drawable/ic_alarm_on"
+        android:contentDescription="Alarme" />
+
+    <!-- Espaço -->
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="20dp" />
+
+    <!-- Texto "Hora do Medicamento" -->
+    <TextView
+        android:id="@+id/alarm_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hora do Medicamento"
+        android:textSize="40sp"
+        android:textColor="#FFFFFF"
+        android:fontFamily="sans-serif"
+        android:textStyle="bold"
+        android:shadowColor="#66000000"
+        android:shadowDx="2"
+        android:shadowDy="2"
+        android:shadowRadius="4"
+        android:textAlignment="center"
+        android:padding="16dp" />
+
+    <!-- Espaço -->
+    <Space
+        android:layout_width="match_parent"
+        android:layout_height="40dp" />
+
+    <!-- Botão "Ver" -->
+    <Button
+        android:id="@+id/dismiss_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ver"
+        android:textSize="30sp"
+        android:textColor="#006994"
+        android:background="@drawable/button_background"
+        android:paddingStart="60dp"
+        android:paddingEnd="60dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="20dp"
+        android:elevation="8dp"
+        android:layout_gravity="center" />
+
+</LinearLayout>

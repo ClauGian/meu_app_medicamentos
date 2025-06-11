@@ -8,12 +8,14 @@ class MedicationAlertScreen extends StatefulWidget {
   final String horario;
   final List<String> medicationIds;
   final Database database;
+  
 
   const MedicationAlertScreen({
     super.key,
     required this.horario,
     required this.medicationIds,
     required this.database,
+    
   });
 
   @override
