@@ -3,12 +3,18 @@ import 'package:sqflite/sqflite.dart';
 import 'dart:io';
 import 'medication_registration_screen.dart';
 import 'home_screen.dart';
+import '../notification_service.dart'; // Adicionado import
 import 'package:intl/intl.dart';
 
 class MedicationListScreen extends StatefulWidget {
   final Database database;
+  final NotificationService notificationService; // Novo parâmetro
 
-  const MedicationListScreen({super.key, required this.database});
+  const MedicationListScreen({
+    super.key,
+    required this.database,
+    required this.notificationService,
+  });
 
   @override
   State<MedicationListScreen> createState() => _MedicationListScreenState();
@@ -25,6 +31,7 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
 
   Future<void> _loadMedications() async {
     final List<Map<String, dynamic>> medications = await widget.database.query('medications');
+    print('DEBUG: Medicamentos carregados em MedicationListScreen: $medications'); // Adicionado log
     setState(() {
       _medications = medications;
     });
@@ -149,7 +156,12 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
         if (!didPop) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (context) => HomeScreen(database: widget.database)),
+            MaterialPageRoute(
+              builder: (context) => HomeScreen(
+                database: widget.database,
+                notificationService: widget.notificationService, // Adicionado
+              ),
+            ),
             (route) => false,
           );
         }
@@ -195,7 +207,12 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
               onPressed: () {
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => HomeScreen(database: widget.database)),
+                  MaterialPageRoute(
+                    builder: (context) => HomeScreen(
+                      database: widget.database,
+                      notificationService: widget.notificationService, // Adicionado
+                    ),
+                  ),
                   (route) => false,
                 );
               },
@@ -566,13 +583,13 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
                                               adjustedMed['frequencia'] = med['frequencia']?.toString();
                                               adjustedMed['isContinuous'] = med['isContinuous']?.toString();
                                               adjustedMed['horarios'] = med['horarios']?.toString() ?? '';
-                                     
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) => MedicationRegistrationScreen(
                                                     database: widget.database,
                                                     medication: adjustedMed,
+                                                    notificationService: widget.notificationService,
                                                   ),
                                                 ),
                                               ).then((_) => _loadMedications());

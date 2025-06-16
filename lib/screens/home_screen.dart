@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+import '../notification_service.dart'; // Adicionado
 import 'medication_list_screen.dart';
 import 'medication_registration_screen.dart';
 import 'user_registration_screen.dart';
@@ -8,11 +9,15 @@ import 'instructions_screen.dart';
 import 'daily_alerts_screen.dart';
 import 'alert_sound_selection_screen.dart';
 
-
 class HomeScreen extends StatefulWidget {
   final Database database;
+  final NotificationService notificationService; // Novo parâmetro
 
-  const HomeScreen({super.key, required this.database});
+  const HomeScreen({
+    super.key,
+    required this.database,
+    required this.notificationService,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -69,10 +74,9 @@ class _HomeScreenState extends State<HomeScreen> {
             bottomRight: Radius.circular(30),
           ),
         ),
-        backgroundColor: const Color(0xFFF0F8F0), // tom pastel claro
+        backgroundColor: const Color(0xFFF0F8F0),
         child: Column(
           children: [
-            // Cabeçalho com degradê e nome do app
             Container(
               width: double.infinity,
               decoration: const BoxDecoration(
@@ -86,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.only(top: 40.0, bottom: 12.0), // <- aqui está o ajuste
+                padding: const EdgeInsets.only(top: 40.0, bottom: 12.0),
                 child: Center(
                   child: RichText(
                     text: const TextSpan(
@@ -113,10 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 10),
-
-            // Itens do menu com ícones
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(12.0),
@@ -133,7 +134,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   }),
                   _buildMenuCard(Icons.medical_services, 'Cadastrar Medicamentos', () {
                     Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => MedicationRegistrationScreen(database: widget.database),
+                      builder: (context) => MedicationRegistrationScreen(
+                        database: widget.database,
+                        notificationService: widget.notificationService, // Corrigido
+                      ),
                     ));
                   }),
                   _buildMenuCard(Icons.alarm_add, 'Cadastrar Alertas', () {
@@ -143,12 +147,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   }),
                   _buildMenuCard(Icons.list_alt, 'Lista de Medicamentos', () {
                     Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => MedicationListScreen(database: widget.database),
+                      builder: (context) => MedicationListScreen(
+                        database: widget.database,
+                        notificationService: widget.notificationService,
+                      ),
                     ));
                   }),
                   _buildMenuCard(Icons.today, 'Alertas do Dia', () {
                     Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => DailyAlertsScreen(database: widget.database),
+                      builder: (context) => DailyAlertsScreen(
+                        database: widget.database,
+                        notificationService: widget.notificationService,
+                      ),
                     ));
                   }),
                 ],
@@ -245,27 +255,10 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  // Função reutilizável para os itens
-  Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, size: 32, color: const Color.fromRGBO(0, 105, 148, 1)),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-          color: Color.fromRGBO(0, 85, 128, 1),
-        ),
-      ),
-      onTap: onTap,
-      hoverColor: const Color.fromARGB(30, 0, 105, 148),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-    );
-  }  
 
   Widget _buildMenuCard(IconData icon, String title, VoidCallback onTap) {
     return Container(
-      height: 80, // Altura fixa para todos
+      height: 80,
       margin: const EdgeInsets.only(bottom: 12.0),
       padding: const EdgeInsets.symmetric(horizontal: 12.0),
       decoration: BoxDecoration(
@@ -292,5 +285,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
 }

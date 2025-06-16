@@ -1,56 +1,84 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
 import 'screens/welcome_screen.dart';
 import 'screens/medication_alert_screen.dart';
+import 'screens/daily_alerts_screen.dart';
+import 'screens/home_screen.dart';
 import 'notification_service.dart';
 
-Future<Database> initDatabase() async {
-  print('DEBUG: Iniciando _initDatabase');
-  final dbPath = await getDatabasesPath();
-  final pathName = path.join(dbPath, 'medications.db');
-  try {
-    final database = await openDatabase(
-      pathName,
-      version: 3,
-      onCreate: (db, version) async {
-        await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
-        await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, date TEXT)');
-        await db.execute('CREATE TABLE IF NOT EXISTS caregivers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)');
-        print("DEBUG: Criação das tabelas concluída.");
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute('ALTER TABLE medications RENAME TO medications_old');
-          await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
-          await db.execute('INSERT INTO medications (id, nome, quantidade, dosagem_diaria, tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id) SELECT id, nome, COALESCE(quantidade, 0), COALESCE(dosagem_diaria, 0), tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id FROM medications_old');
-          await db.execute('DROP TABLE medications_old');
-          print("DEBUG: Migração para versão 2 concluída.");
-        }
-        if (oldVersion < 3) {
-          await db.execute('ALTER TABLE users ADD COLUMN date TEXT');
-          print("DEBUG: Coluna date adicionada à tabela users.");
-        }
-      },
-    );
-    if (!database.isOpen) {
-      throw Exception("Erro: Banco de dados não está aberto.");
+class DatabaseSingleton {
+  static Database? _database;
+  static bool _isInitializing = false;
+
+  static Future<Database> getInstance() async {
+    if (_database != null && _database!.isOpen) {
+      print('DEBUG: Retornando instância existente do banco de dados');
+      return _database!;
     }
+
+    if (_isInitializing) {
+      print('DEBUG: Aguardando inicialização do banco de dados');
+      while (_isInitializing) {
+        await Future.delayed(Duration(milliseconds: 100));
+      }
+      return _database!;
+    }
+
+    _isInitializing = true;
     try {
-      await database.rawQuery('PRAGMA journal_mode=WAL;');
-      print('DEBUG: Configuração PRAGMA journal_mode=WAL concluída');
+      print('DEBUG: Iniciando inicialização do banco de dados');
+      final dbPath = await getDatabasesPath();
+      final pathName = path.join(dbPath, 'medications.db');
+      final database = await openDatabase(
+        pathName,
+        version: 3,
+        onCreate: (db, version) async {
+          await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
+          await db.execute('CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, name TEXT, phone TEXT, date TEXT)');
+          await db.execute('CREATE TABLE IF NOT EXISTS caregivers(id INTEGER PRIMARY KEY, name TEXT, phone TEXT)');
+          await db.execute('CREATE INDEX idx_medications_id ON medications(id)');
+          await db.execute('CREATE INDEX idx_medications_horarios ON medications(horarios)');
+          await db.execute('CREATE INDEX idx_medications_startDate ON medications(startDate)');
+          print("DEBUG: Criação das tabelas e índices concluída.");
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute('ALTER TABLE medications RENAME TO medications_old');
+            await db.execute('CREATE TABLE medications (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, quantidade INTEGER NOT NULL, dosagem_diaria INTEGER NOT NULL, tipo_medicamento TEXT, frequencia TEXT, horarios TEXT, startDate TEXT, isContinuous INTEGER, foto_embalagem TEXT, skip_count INTEGER, cuidador_id TEXT)');
+            await db.execute('INSERT INTO medications (id, nome, quantidade, dosagem_diaria, tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id) SELECT id, nome, COALESCE(quantidade, 0), COALESCE(dosagem_diaria, 0), tipo_medicamento, frequencia, horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id FROM medications_old');
+            await db.execute('DROP TABLE medications_old');
+            print("DEBUG: Migração para versão 2 concluída.");
+          }
+          if (oldVersion < 3) {
+            await db.execute('ALTER TABLE users ADD COLUMN date TEXT');
+            print("DEBUG: Coluna date adicionada à tabela users.");
+          }
+        },
+      );
+      if (!database.isOpen) {
+        throw Exception("Erro: Banco de dados não está aberto.");
+      }
+      try {
+        await database.rawQuery('PRAGMA journal_mode=WAL;');
+        print('DEBUG: Configuração PRAGMA journal_mode=WAL concluída');
+      } catch (e) {
+        print('DEBUG: Erro ao configurar PRAGMA journal_mode=WAL: $e');
+      }
+      print("DEBUG: openDatabase concluído: $database");
+      _database = database;
+      _isInitializing = false;
+      return _database!;
     } catch (e) {
-      print('DEBUG: Erro ao configurar PRAGMA journal_mode=WAL: $e');
+      print('DEBUG: Erro ao inicializar banco de dados: $e');
+      _isInitializing = false;
+      rethrow;
     }
-    print("DEBUG: openDatabase concluído: $database");
-    return database;
-  } catch (e) {
-    print('DEBUG: Erro ao inicializar banco de dados: $e');
-    rethrow;
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final Database? database;
   final NotificationService notificationService;
   final Widget initialScreen;
@@ -63,6 +91,45 @@ class MyApp extends StatelessWidget {
   });
 
   @override
+  MyAppState createState() => MyAppState();
+}
+
+class MyAppState extends State<MyApp> {
+  static const platform = MethodChannel('com.claudinei.medialerta/navigation');
+  Map<String, dynamic>? initialRouteData;
+
+  @override
+  void initState() {
+    super.initState();
+    _getInitialRoute();
+  }
+
+  Future<void> _getInitialRoute() async {
+    try {
+      final result = await platform.invokeMethod('getInitialRoute');
+      if (result != null) {
+        setState(() {
+          initialRouteData = Map<String, dynamic>.from(result);
+          print('DEBUG: Initial route data: $initialRouteData');
+        });
+        if (initialRouteData?['route'] == 'medication_alert') {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            NotificationService.navigatorKey.currentState?.pushNamed(
+              'medication_alert',
+              arguments: {
+                'horario': initialRouteData?['horario'] ?? '08:00',
+                'medicationIds': List<String>.from(initialRouteData?['medicationIds'] ?? []),
+              },
+            );
+          });
+        }
+      }
+    } catch (e) {
+      print('DEBUG: Erro ao obter rota inicial: $e');
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MediAlerta',
@@ -71,35 +138,70 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFFF0F0F0),
       ),
-      home: initialScreen,
+      home: widget.initialScreen,
       onGenerateRoute: (settings) {
+        print('DEBUG: Gerando rota para: ${settings.name}, argumentos: ${settings.arguments}');
         if (settings.name == 'medication_alert') {
           final args = settings.arguments as Map<String, dynamic>?;
+          if (args == null || args['medicationIds'] == null || args['horario'] == null) {
+            print('DEBUG: Argumentos inválidos, redirecionando para WelcomeScreen');
+            return MaterialPageRoute(
+              builder: (context) => WelcomeScreen(
+                database: widget.database!,
+                notificationService: widget.notificationService,
+              ),
+            );
+          }
+          final medicationIds = args['medicationIds'] is List
+              ? List<String>.from(args['medicationIds'])
+              : [];
+          if (medicationIds.isEmpty) {
+            print('DEBUG: Lista de medicationIds vazia, tentando buscar por horário');
+            return MaterialPageRoute(
+              builder: (context) => MedicationAlertScreen(
+                horario: args['horario'] ?? '08:00',
+                medicationIds: [],
+                database: widget.database!,
+                notificationService: widget.notificationService,
+              ),
+            );
+          }
           return MaterialPageRoute(
-            builder: (context) => FutureBuilder<Database>(
-              future: initDatabase(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                } else if (snapshot.hasError) {
-                  print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
-                  return const Scaffold(
-                    body: Center(child: Text('Erro ao carregar o aplicativo.')),
-                  );
-                } else {
-                  return MedicationAlertScreen(
-                    horario: args?['horario'] ?? '08:00',
-                    medicationIds: (args?['medicationIds'] as String?)?.split(',') ?? [],
-                    database: snapshot.data!,
-                  );
-                }
-              },
+            builder: (context) => MedicationAlertScreen(
+              horario: args['horario'] ?? '08:00',
+              medicationIds: medicationIds,
+              database: widget.database!,
+              notificationService: widget.notificationService,
+            ),
+          );
+        } else if (settings.name == 'welcome_screen') {
+          return MaterialPageRoute(
+            builder: (context) => WelcomeScreen(
+              database: widget.database!,
+              notificationService: widget.notificationService,
+            ),
+          );
+        } else if (settings.name == 'home_screen') {
+          return MaterialPageRoute(
+            builder: (context) => HomeScreen(
+              database: widget.database!,
+              notificationService: widget.notificationService,
+            ),
+          );
+        } else if (settings.name == 'daily_alerts_screen') {
+          return MaterialPageRoute(
+            builder: (context) => DailyAlertsScreen(
+              database: widget.database!,
+              notificationService: widget.notificationService,
             ),
           );
         }
-        return null;
+        return MaterialPageRoute(
+          builder: (context) => WelcomeScreen(
+            database: widget.database!,
+            notificationService: widget.notificationService,
+          ),
+        );
       },
     );
   }
@@ -109,7 +211,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('DEBUG: Iniciando main');
 
-  // Tela de carregamento inicial
   runApp(const MaterialApp(
     home: Scaffold(
       body: Center(child: CircularProgressIndicator()),
@@ -118,64 +219,35 @@ void main() async {
 
   try {
     final notificationService = NotificationService();
+    final database = await DatabaseSingleton.getInstance();
+    await notificationService.init(database);
+    print('DEBUG: NotificationService inicializado com sucesso no main');
+
     final notification = await notificationService.getInitialNotification();
-    Future<Database>? databaseFuture;
-
-    Future<Database> getDatabase() async {
-      databaseFuture ??= initDatabase();
-      return databaseFuture!;
-    }
-
-    // Inicializar initialScreen com um valor padrão
-    Widget initialScreen = FutureBuilder<Database>(
-      future: getDatabase(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        } else if (snapshot.hasError) {
-          print('DEBUG: Erro ao carregar banco de dados: ${snapshot.error}');
-          return const Scaffold(
-            body: Center(child: Text('Erro ao carregar o aplicativo.')),
-          );
-        } else {
-          return WelcomeScreen(
-            database: snapshot.data!,
-            notificationService: notificationService,
-          );
-        }
-      },
+    Widget initialScreen = WelcomeScreen(
+      database: database,
+      notificationService: notificationService,
     );
 
     if (notification != null && notification.payload != null) {
-      final database = await getDatabase();
-      await Future.delayed(const Duration(milliseconds: 100)); // Aliviar thread principal
-      await notificationService.init(database);
-      print('DEBUG: NotificationService inicializado para notificação inicial');
       final payload = notification.payload!;
       if (payload.contains('|')) {
         final parts = payload.split('|');
         final horario = parts[0];
-        final medicationIds = parts[1].split(',');
+        final List<String> medicationIds = parts[1].split(','); // Correção explícita do tipo
         initialScreen = MedicationAlertScreen(
           horario: horario,
           medicationIds: medicationIds,
           database: database,
+          notificationService: notificationService,
         );
-        // Cancelar a notificação após exibir a tela
         notificationService.cancelNotification(notification.id!);
         print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
       }
-    } else {
-      await Future.delayed(const Duration(milliseconds: 100)); // Aliviar thread principal
-      final database = await getDatabase();
-      await notificationService.init(database);
-      print('DEBUG: NotificationService inicializado com sucesso no main');
     }
 
     runApp(MyApp(
-      database: null, // Não passa o database diretamente, usa FutureBuilder
+      database: database,
       notificationService: notificationService,
       initialScreen: initialScreen,
     ));

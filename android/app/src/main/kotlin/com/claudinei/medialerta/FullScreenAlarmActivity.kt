@@ -28,15 +28,16 @@ class FullScreenAlarmActivity : AppCompatActivity() {
         val payload = intent.getStringExtra("body") ?: "08:00|1,2"
         val parts = payload.split("|")
         val horario = if (parts.isNotEmpty()) parts[0] else "08:00"
-        val medicationIds = if (parts.size > 1) parts[1] else ""
+        val medicationIds = if (parts.size > 1) parts[1].split(",").filter { it.isNotEmpty() } else emptyList()
 
         viewButton.setOnClickListener {
             val intent = Intent(this, MainActivity::class.java).apply {
                 setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 putExtra("route", "medication_alert")
                 putExtra("horario", horario)
-                putExtra("medicationIds", medicationIds)
+                putStringArrayListExtra("medicationIds", ArrayList(medicationIds))
             }
+            android.util.Log.d("MediAlerta", "Payload sendo passado: horario=$horario, medicationIds=$medicationIds")
             mediaPlayer?.stop()
             mediaPlayer?.release()
             mediaPlayer = null

@@ -15,8 +15,14 @@ import 'package:medialerta/screens/home_screen.dart'; // Ajuste o caminho confor
 class MedicationRegistrationScreen extends StatefulWidget {
   final Database database;
   final Map<String, dynamic>? medication;
+  final NotificationService notificationService; // Adicionado
 
-  const MedicationRegistrationScreen({super.key, required this.database, this.medication});
+  const MedicationRegistrationScreen({
+    super.key,
+    required this.database,
+    this.medication,
+    required this.notificationService, // Adicionado
+  });
 
   @override
   State<MedicationRegistrationScreen> createState() => _MedicationRegistrationScreenState();
@@ -685,7 +691,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
       }
 
       // Inicializar o NotificationService apenas se necessário
-      final notificationService = NotificationService();
+      final notificationService = widget.notificationService; // Alterado para usar widget.notificationService
       // Não precisamos chamar init novamente, pois já foi inicializado em main.dart
 
       final horarios = _timeControllers
@@ -773,7 +779,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => MedicationListScreen(database: widget.database)),
+                MaterialPageRoute(builder: (context) => MedicationListScreen(
+                  database: widget.database,
+                  notificationService: widget.notificationService, // Adicionado
+                )),
               );
             },
             child: const Text(
@@ -787,7 +796,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
               Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => HomeScreen(database: widget.database)),
+                MaterialPageRoute(builder: (context) => HomeScreen(
+                  database: widget.database,
+                  notificationService: widget.notificationService, // Adicionado
+                )),
               );
             },
             child: const Text(

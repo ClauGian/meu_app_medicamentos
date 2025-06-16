@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'screens/medication_alert_screen.dart';
-import 'dart:typed_data';
 import 'package:path/path.dart' as path;
 import 'dart:async';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
-import 'database_helper.dart';
-import 'main.dart' show initDatabase, MyApp;
-import 'package:app_settings_plus/app_settings_plus.dart';
+import 'main.dart' show DatabaseSingleton, MyApp; // Atualizado para importar DatabaseSingleton
 import 'package:flutter/services.dart';
 
 final _processedNotificationIds = <int>{};
@@ -81,7 +77,7 @@ class NotificationService {
           'medication_channel',
           'Lembrete de Medicamento',
           description: 'Notificações para lembretes de medicamentos',
-          importance: Importance.max, // Máxima importância
+          importance: Importance.max,
           playSound: true,
           sound: RawResourceAndroidNotificationSound('alarm'),
           enableVibration: true,
@@ -144,7 +140,6 @@ class NotificationService {
     }
     _processedNotificationIds.add(response.id!);
 
-    // Cancelar notificação imediatamente
     try {
       await _notificationService._notificationsPlugin.cancel(response.id!);
       print('DEBUG: Notificação nativa ID ${response.id} cancelada');
@@ -161,23 +156,38 @@ class NotificationService {
       final horario = payloadParts[0];
       final medicationIds = payloadParts[1].split(',');
 
-      // Inicializar banco de dados se necessário
       if (_notificationService._database == null) {
-        _notificationService._database = await initDatabase();
+        _notificationService._database = await DatabaseSingleton.getInstance(); // Correção
         await _notificationService.init(_notificationService._database!);
       }
 
-      // Navegar diretamente para MedicationAlertScreen
-      navigatorKey.currentState?.pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => MedicationAlertScreen(
+      final navigatorState = NotificationService.navigatorKey.currentState;
+      if (navigatorState != null && navigatorState.mounted) {
+        navigatorState.pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => MedicationAlertScreen(
+              horario: horario,
+              medicationIds: medicationIds,
+              database: _notificationService._database!,
+              notificationService: _notificationService,
+            ),
+          ),
+        );
+        print('DEBUG: Navegação para MedicationAlertScreen concluída');
+      } else {
+        print('DEBUG: NavigatorState não disponível, inicializando app');
+        WidgetsFlutterBinding.ensureInitialized();
+        runApp(MyApp(
+          database: _notificationService._database,
+          notificationService: _notificationService,
+          initialScreen: MedicationAlertScreen(
             horario: horario,
             medicationIds: medicationIds,
             database: _notificationService._database!,
+            notificationService: _notificationService,
           ),
-        ),
-      );
-      print('DEBUG: Navegação para MedicationAlertScreen concluída');
+        ));
+      }
     } catch (e) {
       print('DEBUG: ERRO ao processar notificação: $e');
     }
@@ -193,11 +203,11 @@ class NotificationService {
     print('DEBUG: Exibindo notificação com id: $id, title: $title, sound: $sound');
     print('DEBUG: navigatorKey.currentContext disponível: ${navigatorKey.currentContext != null}');
     try {
-      // Configurar o MethodChannel
+      print('DEBUG: Payload enviado ao MethodChannel: $payload');
       const platform = MethodChannel('com.claudinei.medialerta/fullscreen');
       await platform.invokeMethod('showFullScreenAlarm', {
         'title': title,
-        'body': payload, // Passar payload (horario|medicationIds) em vez de body
+        'body': payload,
       });
       print('DEBUG: FullScreenAlarmActivity chamada via MethodChannel');
     } catch (e) {
@@ -286,10 +296,9 @@ class NotificationService {
   static Future<void> alarmCallback(int id, Map<String, dynamic> params) async {
     print('DEBUG: Iniciando alarmCallback para ID $id com params: $params');
     try {
-      // Inicializar banco de dados se necessário
       if (_notificationService._database == null) {
-        print('DEBUG: Banco de dados nulo, inicializando via initDatabase');
-        _notificationService._database = await initDatabase();
+        print('DEBUG: Banco de dados nulo, inicializando via DatabaseSingleton');
+        _notificationService._database = await DatabaseSingleton.getInstance(); // Correção
         await _notificationService.init(_notificationService._database!);
         print('DEBUG: Banco de dados inicializado com sucesso');
       }
@@ -310,6 +319,7 @@ class NotificationService {
                 horario: horario,
                 medicationIds: medicationIds,
                 database: _notificationService._database!,
+                notificationService: _notificationService,
               ),
             ),
           );
@@ -317,14 +327,14 @@ class NotificationService {
         } else {
           print('DEBUG: NavigatorState não disponível, inicializando app');
           WidgetsFlutterBinding.ensureInitialized();
-          await _notificationService.init(_notificationService._database!);
           runApp(MyApp(
-            database: null,
+            database: _notificationService._database,
             notificationService: _notificationService,
             initialScreen: MedicationAlertScreen(
               horario: horario,
               medicationIds: medicationIds,
               database: _notificationService._database!,
+              notificationService: _notificationService,
             ),
           ));
           print('DEBUG: App inicializado com MedicationAlertScreen');

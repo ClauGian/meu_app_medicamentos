@@ -1,11 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+import '../notification_service.dart';
 import 'medication_alert_screen.dart';
 
-class DailyAlertsScreen extends StatelessWidget {
+class DailyAlertsScreen extends StatefulWidget {
   final Database database;
+  final NotificationService notificationService;
 
-  const DailyAlertsScreen({super.key, required this.database});
+  const DailyAlertsScreen({
+    super.key,
+    required this.database,
+    required this.notificationService,
+  });
+
+  @override
+  DailyAlertsScreenState createState() => DailyAlertsScreenState();
+}
+
+class DailyAlertsScreenState extends State<DailyAlertsScreen> {
+  Future<Map<String, List<Map<String, dynamic>>>> _getGroupedDailyAlerts() async {
+    final startTime = DateTime.now();
+    try {
+      final medications = await widget.database.query(
+        'medications',
+        where: 'horarios IS NOT NULL AND horarios != ? AND (isContinuous = ? OR startDate <= ?)',
+        whereArgs: ['', 1, DateTime.now().toIso8601String()],
+      );
+      print('DEBUG: Medicamentos buscados: $medications');
+
+      final Map<String, List<Map<String, dynamic>>> grouped = {};
+
+      for (var med in medications) {
+        final horariosStr = med['horarios'] as String? ?? '';
+        if (horariosStr.trim().isEmpty) continue;
+
+        final horarios = horariosStr.split(',').map((h) => h.trim()).toList();
+        final startDate = DateTime.parse(med['startDate'] as String);
+        final isContinuous = (med['isContinuous'] as int?) == 1;
+
+        if (isContinuous || startDate.isBefore(DateTime.now())) {
+          for (var horario in horarios) {
+            grouped.putIfAbsent(horario, () => []).add(med);
+          }
+        }
+      }
+
+      final sortedKeys = grouped.keys.toList()..sort();
+      final Map<String, List<Map<String, dynamic>>> sortedGrouped = {
+        for (var key in sortedKeys) key: grouped[key]!
+      };
+
+      print('DEBUG: Tempo de _getGroupedDailyAlerts: ${DateTime.now().difference(startTime).inMilliseconds}ms');
+      return sortedGrouped;
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro em _getGroupedDailyAlerts: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+      return {};
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +66,7 @@ class DailyAlertsScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFCCCCCC),
         elevation: 0,
         centerTitle: true,
-        toolbarHeight: 110, // Altura aumentada para acomodar as duas linhas
+        toolbarHeight: 110,
         title: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -60,7 +112,7 @@ class DailyAlertsScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.black45),
                   borderRadius: BorderRadius.circular(8),
-                  color: const Color(0xFFEFEFEF), // Fundo cinza claro
+                  color: const Color(0xFFEFEFEF),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -93,8 +145,9 @@ class DailyAlertsScreen extends StatelessWidget {
                               MaterialPageRoute(
                                 builder: (context) => MedicationAlertScreen(
                                   horario: horario,
-                                  medicationIds: [id], // Passa uma lista com o ID único
-                                  database: database,
+                                  medicationIds: [id],
+                                  database: widget.database,
+                                  notificationService: widget.notificationService,
                                 ),
                               ),
                             );
@@ -105,7 +158,7 @@ class DailyAlertsScreen extends StatelessWidget {
                               '• $nome  –  $doseFormatada  comprimido(s)',
                               style: const TextStyle(
                                 fontSize: 18,
-                                color: Color.fromRGBO(0, 105, 148, 1), // Azul escuro
+                                color: Color.fromRGBO(0, 105, 148, 1),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -121,35 +174,5 @@ class DailyAlertsScreen extends StatelessWidget {
         },
       ),
     );
-  }
-
-  Future<Map<String, List<Map<String, dynamic>>>> _getGroupedDailyAlerts() async {
-    final medications = await database.query('medications');
-    final today = DateTime.now();
-    final Map<String, List<Map<String, dynamic>>> grouped = {};
-
-    for (var med in medications) {
-      final horariosStr = med['horarios'] as String;
-      if (horariosStr.trim().isEmpty) continue;
-
-      final horarios = horariosStr.split(',');
-      final startDate = DateTime.parse(med['startDate'] as String);
-      final isContinuous = med['isContinuous'] as int == 1;
-
-      if (isContinuous || startDate.isBefore(today)) {
-        for (var h in horarios) {
-          final horario = h.trim();
-          grouped.putIfAbsent(horario, () => []).add(med);
-        }
-      }
-    }
-
-    // Ordena os horários
-    final sortedKeys = grouped.keys.toList()..sort((a, b) => a.compareTo(b));
-    final Map<String, List<Map<String, dynamic>>> sortedGrouped = {
-      for (var key in sortedKeys) key: grouped[key]!,
-    };
-
-    return sortedGrouped;
   }
 }
