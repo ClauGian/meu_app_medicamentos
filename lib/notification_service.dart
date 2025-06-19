@@ -200,18 +200,47 @@ class NotificationService {
     required String sound,
     required String payload,
   }) async {
-    print('DEBUG: Exibindo notificação com id: $id, title: $title, sound: $sound');
+    print('DEBUG: Iniciando showNotification com id: $id, title: $title, sound: $sound, payload: $payload');
     print('DEBUG: navigatorKey.currentContext disponível: ${navigatorKey.currentContext != null}');
     try {
-      print('DEBUG: Payload enviado ao MethodChannel: $payload');
+      print('DEBUG: Tentando chamar FullScreenAlarmActivity via MethodChannel');
       const platform = MethodChannel('com.claudinei.medialerta/fullscreen');
       await platform.invokeMethod('showFullScreenAlarm', {
         'title': title,
         'body': payload,
       });
-      print('DEBUG: FullScreenAlarmActivity chamada via MethodChannel');
-    } catch (e) {
+      print('DEBUG: FullScreenAlarmActivity chamada com sucesso via MethodChannel');
+    } catch (e, stackTrace) {
       print('DEBUG: Erro ao chamar FullScreenAlarmActivity: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+      // Fallback para notificação padrão, se necessário
+      await _notificationsPlugin.show(
+        id,
+        title,
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'medication_channel',
+            'Lembrete de Medicamento',
+            channelDescription: 'Notificações para lembretes de medicamentos',
+            importance: Importance.max,
+            priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound(sound),
+            playSound: true,
+            icon: '@mipmap/ic_launcher',
+            largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+            fullScreenIntent: true,
+            visibility: NotificationVisibility.public,
+            enableVibration: true,
+            enableLights: true,
+            ledColor: Colors.blue,
+            autoCancel: true,
+            category: AndroidNotificationCategory.alarm,
+          ),
+        ),
+        payload: payload,
+      );
+      print('DEBUG: Notificação padrão exibida como fallback');
     }
   }
 

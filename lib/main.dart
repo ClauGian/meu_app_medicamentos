@@ -153,14 +153,15 @@ class MyAppState extends State<MyApp> {
             );
           }
           final medicationIds = args['medicationIds'] is List
-              ? List<String>.from(args['medicationIds'])
-              : [];
+              ? List<String>.from(args['medicationIds'].map((e) => e.toString()))
+              : <String>[];
+          print('DEBUG: medicationIds: $medicationIds, Tipo: ${medicationIds.runtimeType}');
           if (medicationIds.isEmpty) {
             print('DEBUG: Lista de medicationIds vazia, tentando buscar por horário');
             return MaterialPageRoute(
               builder: (context) => MedicationAlertScreen(
                 horario: args['horario'] ?? '08:00',
-                medicationIds: [],
+                medicationIds: <String>[],
                 database: widget.database!,
                 notificationService: widget.notificationService,
               ),
@@ -169,7 +170,7 @@ class MyAppState extends State<MyApp> {
           return MaterialPageRoute(
             builder: (context) => MedicationAlertScreen(
               horario: args['horario'] ?? '08:00',
-              medicationIds: medicationIds,
+              medicationIds: medicationIds, // Linha 172
               database: widget.database!,
               notificationService: widget.notificationService,
             ),
@@ -223,26 +224,39 @@ void main() async {
     await notificationService.init(database);
     print('DEBUG: NotificationService inicializado com sucesso no main');
 
-    final notification = await notificationService.getInitialNotification();
     Widget initialScreen = WelcomeScreen(
       database: database,
       notificationService: notificationService,
     );
-
+    final notification = await notificationService.getInitialNotification();
     if (notification != null && notification.payload != null) {
       final payload = notification.payload!;
+      print('DEBUG: Payload recebido: $payload, Tipo: ${payload.runtimeType}');
       if (payload.contains('|')) {
         final parts = payload.split('|');
-        final horario = parts[0];
-        final List<String> medicationIds = parts[1].split(','); // Correção explícita do tipo
-        initialScreen = MedicationAlertScreen(
-          horario: horario,
-          medicationIds: medicationIds,
-          database: database,
-          notificationService: notificationService,
-        );
-        notificationService.cancelNotification(notification.id!);
-        print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
+        print('DEBUG: Partes do payload: $parts, Tipo: ${parts.runtimeType}');
+        if (parts.length < 2 || parts[1].isEmpty) {
+          print('DEBUG: Payload inválido: $payload');
+          initialScreen = WelcomeScreen(
+            database: database,
+            notificationService: notificationService,
+          );
+        } else {
+          final horario = parts[0];
+          print('DEBUG: Horario: $horario, Tipo: ${horario.runtimeType}');
+          final rawIds = parts[1].split(',');
+          print('DEBUG: IDs brutos: $rawIds, Tipo: ${rawIds.runtimeType}');
+          final medicationIds = List<String>.from(rawIds.map((e) => e.toString()));
+          print('DEBUG: medicationIds final: $medicationIds, Tipo: ${medicationIds.runtimeType}');
+          initialScreen = MedicationAlertScreen(
+            horario: horario,
+            medicationIds: medicationIds,
+            database: database,
+            notificationService: notificationService,
+          );
+          notificationService.cancelNotification(notification.id!);
+          print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
+        }
       }
     }
 

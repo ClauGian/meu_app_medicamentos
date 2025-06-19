@@ -44,7 +44,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/imagem_senhora.png
-    - assets/icone_ma.png
+    - assets/icone_ma.png   
     - assets/sounds/alarm.mp3
     - assets/sounds/alert.mp3
     - assets/sounds/malta.mp3
