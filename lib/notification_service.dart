@@ -7,7 +7,6 @@ import 'package:path/path.dart' as path;
 import 'dart:async';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
-import 'main.dart' show DatabaseSingleton, MyApp; // Atualizado para importar DatabaseSingleton
 import 'package:flutter/services.dart';
 
 final _processedNotificationIds = <int>{};
@@ -29,83 +28,89 @@ class NotificationService {
 
   NotificationService._internal();
 
-  Future<void> init(Database database) async {
-    final int startTime = DateTime.now().millisecondsSinceEpoch;
-    print('DEBUG: Iniciando NotificationService.init - Elapsed: 0ms');
+Future<void> init(Database database) async {
+  final int startTime = DateTime.now().millisecondsSinceEpoch;
+  print('DEBUG: Iniciando NotificationService.init - Elapsed: 0ms');
 
-    _database = database;
+  _database = database;
 
-    try {
-      // Inicializar o timezone
-      tz.initializeTimeZones();
-      print('DEBUG: Timezone inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+  try {
+    // Inicializar o timezone
+    tz.initializeTimeZones();
+    print('DEBUG: Timezone inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
-      final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      if (androidPlugin == null) {
-        print('DEBUG: Falha ao resolver AndroidFlutterLocalNotificationsPlugin');
-        return;
-      }
-
-      bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
-      print('DEBUG: Permissão de notificações concedida: $notificationsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-      if (notificationsGranted == null || !notificationsGranted) {
-        print('DEBUG: Permissão de notificações não concedida');
-        return;
-      }
-
-      bool? exactAlarmsGranted = await androidPlugin.requestExactAlarmsPermission();
-      print('DEBUG: Permissão de alarme exato concedida: $exactAlarmsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-      if (exactAlarmsGranted == null || !exactAlarmsGranted) {
-        print('DEBUG: Permissão de alarme exato não concedida');
-        return;
-      }
-
-      bool? fullScreenIntentGranted = await androidPlugin.requestFullScreenIntentPermission();
-      print('DEBUG: Permissão de tela cheia concedida (inicial): $fullScreenIntentGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-      await androidPlugin.createNotificationChannelGroup(
-        const AndroidNotificationChannelGroup(
-          'medication_group',
-          'Medicamentos',
-          description: 'Grupo de notificações para lembretes de medicamentos',
-        ),
-      );
-      print('DEBUG: Grupo de canais de notificação criado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'medication_channel',
-          'Lembrete de Medicamento',
-          description: 'Notificações para lembretes de medicamentos',
-          importance: Importance.max,
-          playSound: true,
-          sound: RawResourceAndroidNotificationSound('alarm'),
-          enableVibration: true,
-          enableLights: true,
-          ledColor: Colors.blue,
-          showBadge: false,
-          groupId: 'medication_group',
-        ),
-      );
-      print('DEBUG: Canal de notificação configurado com som: alarm.mp3 - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-      final initializationSettings = const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      );
-
-      await _notificationsPlugin.initialize(
-        initializationSettings,
-        onDidReceiveNotificationResponse: handleNotificationResponse,
-        onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
-      );
-      print('DEBUG: Plugin de notificações inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-      await AndroidAlarmManager.initialize();
-      print('DEBUG: AndroidAlarmManager inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-    } catch (e) {
-      print('DEBUG: Erro durante inicialização do NotificationService: $e');
+    final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin == null) {
+      print('DEBUG: Falha ao resolver AndroidFlutterLocalNotificationsPlugin');
+      throw Exception('Falha ao resolver AndroidFlutterLocalNotificationsPlugin');
     }
+
+    bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
+    print('DEBUG: Permissão de notificações concedida: $notificationsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+    if (notificationsGranted == null || !notificationsGranted) {
+      print('DEBUG: Permissão de notificações não concedida');
+      throw Exception('Permissão de notificações não concedida');
+    }
+
+    bool? exactAlarmsGranted = await androidPlugin.requestExactAlarmsPermission();
+    print('DEBUG: Permissão de alarme exato concedida: $exactAlarmsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+    if (exactAlarmsGranted == null || !exactAlarmsGranted) {
+      print('DEBUG: Permissão de alarme exato não concedida');
+      throw Exception('Permissão de alarme exato não concedida');
+    }
+
+    bool? fullScreenIntentGranted = await androidPlugin.requestFullScreenIntentPermission();
+    print('DEBUG: Permissão de tela cheia concedida (inicial): $fullScreenIntentGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+    if (fullScreenIntentGranted == null || !fullScreenIntentGranted) {
+      print('DEBUG: Permissão de tela cheia não concedida');
+      throw Exception('Permissão de tela cheia não concedida');
+    }
+
+    await androidPlugin.createNotificationChannelGroup(
+      const AndroidNotificationChannelGroup(
+        'medication_group',
+        'Medicamentos',
+        description: 'Grupo de notificações para lembretes de medicamentos',
+      ),
+    );
+    print('DEBUG: Grupo de canais de notificação criado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'medication_channel',
+        'Lembrete de Medicamento',
+        description: 'Notificações para lembretes de medicamentos',
+        importance: Importance.max,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound('alarm'),
+        enableVibration: true,
+        enableLights: true,
+        ledColor: Colors.blue,
+        showBadge: false,
+        groupId: 'medication_group',
+      ),
+    );
+    print('DEBUG: Canal de notificação configurado com som: alarm.mp3 - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+    const initializationSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+    );
+
+    await _notificationsPlugin.initialize(
+      initializationSettings, // Corrigido de "initialization tiveSettings"
+      onDidReceiveNotificationResponse: handleNotificationResponse,
+      onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
+    );
+    print('DEBUG: Plugin de notificações inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+    await AndroidAlarmManager.initialize();
+    print('DEBUG: AndroidAlarmManager inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+  } catch (e, stackTrace) {
+    print('DEBUG: Erro durante inicialização do NotificationService: $e');
+    print('DEBUG: StackTrace: $stackTrace');
+    rethrow;
   }
+}
 
   Future<NotificationResponse?> getInitialNotification() async {
     print('DEBUG: Verificando notificação inicial');
@@ -124,7 +129,13 @@ class NotificationService {
   }
 
   Future<void> cancelNotification(int id) async {
-    await stopNotificationSound(id);
+    print('DEBUG: Cancelando notificação com id: $id');
+    try {
+      await _notificationsPlugin.cancel(id);
+      print('DEBUG: Notificação cancelada com sucesso');
+    } catch (e) {
+      print('DEBUG: Erro ao cancelar notificação: $e');
+    }
   }
 
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
@@ -157,8 +168,8 @@ class NotificationService {
       final medicationIds = payloadParts[1].split(',');
 
       if (_notificationService._database == null) {
-        _notificationService._database = await DatabaseSingleton.getInstance(); // Correção
-        await _notificationService.init(_notificationService._database!);
+        print('DEBUG: Banco de dados não inicializado no handleNotificationResponse');
+        return;
       }
 
       final navigatorState = NotificationService.navigatorKey.currentState;
@@ -175,18 +186,8 @@ class NotificationService {
         );
         print('DEBUG: Navegação para MedicationAlertScreen concluída');
       } else {
-        print('DEBUG: NavigatorState não disponível, inicializando app');
-        WidgetsFlutterBinding.ensureInitialized();
-        runApp(MyApp(
-          database: _notificationService._database,
-          notificationService: _notificationService,
-          initialScreen: MedicationAlertScreen(
-            horario: horario,
-            medicationIds: medicationIds,
-            database: _notificationService._database!,
-            notificationService: _notificationService,
-          ),
-        ));
+        print('DEBUG: NavigatorState não disponível, adiando navegação');
+        // A navegação inicial é tratada no main.dart
       }
     } catch (e) {
       print('DEBUG: ERRO ao processar notificação: $e');
@@ -213,7 +214,6 @@ class NotificationService {
     } catch (e, stackTrace) {
       print('DEBUG: Erro ao chamar FullScreenAlarmActivity: $e');
       print('DEBUG: StackTrace: $stackTrace');
-      // Fallback para notificação padrão, se necessário
       await _notificationsPlugin.show(
         id,
         title,
@@ -326,10 +326,8 @@ class NotificationService {
     print('DEBUG: Iniciando alarmCallback para ID $id com params: $params');
     try {
       if (_notificationService._database == null) {
-        print('DEBUG: Banco de dados nulo, inicializando via DatabaseSingleton');
-        _notificationService._database = await DatabaseSingleton.getInstance(); // Correção
-        await _notificationService.init(_notificationService._database!);
-        print('DEBUG: Banco de dados inicializado com sucesso');
+        print('DEBUG: Banco de dados não inicializado no alarmCallback');
+        return;
       }
       final payload = params['payload'] as String;
       print('DEBUG: Processando payload: $payload');
@@ -339,7 +337,7 @@ class NotificationService {
         final medicationIds = payloadParts[1].split(',');
         print('DEBUG: Horario: $horario, Medication IDs: $medicationIds');
 
-        final navigatorState = navigatorKey.currentState;
+        final navigatorState = NotificationService.navigatorKey.currentState;
         print('DEBUG: NavigatorState disponível: ${navigatorState != null && navigatorState.mounted}');
         if (navigatorState != null && navigatorState.mounted) {
           navigatorState.pushReplacement(
@@ -354,19 +352,8 @@ class NotificationService {
           );
           print('DEBUG: Navegação para MedicationAlertScreen via alarme concluída');
         } else {
-          print('DEBUG: NavigatorState não disponível, inicializando app');
-          WidgetsFlutterBinding.ensureInitialized();
-          runApp(MyApp(
-            database: _notificationService._database,
-            notificationService: _notificationService,
-            initialScreen: MedicationAlertScreen(
-              horario: horario,
-              medicationIds: medicationIds,
-              database: _notificationService._database!,
-              notificationService: _notificationService,
-            ),
-          ));
-          print('DEBUG: App inicializado com MedicationAlertScreen');
+          print('DEBUG: NavigatorState não disponível, adiando navegação');
+          // A navegação inicial é tratada no main.dart
         }
       } else {
         print('DEBUG: ERRO: Payload inválido no alarme: $payload');

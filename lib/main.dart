@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as path;
+import 'package:firebase_core/firebase_core.dart'; // Adicionado
 import 'screens/welcome_screen.dart';
 import 'screens/medication_alert_screen.dart';
 import 'screens/daily_alerts_screen.dart';
@@ -95,40 +96,6 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> {
-  static const platform = MethodChannel('com.claudinei.medialerta/navigation');
-  Map<String, dynamic>? initialRouteData;
-
-  @override
-  void initState() {
-    super.initState();
-    _getInitialRoute();
-  }
-
-  Future<void> _getInitialRoute() async {
-    try {
-      final result = await platform.invokeMethod('getInitialRoute');
-      if (result != null) {
-        setState(() {
-          initialRouteData = Map<String, dynamic>.from(result);
-          print('DEBUG: Initial route data: $initialRouteData');
-        });
-        if (initialRouteData?['route'] == 'medication_alert') {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            NotificationService.navigatorKey.currentState?.pushNamed(
-              'medication_alert',
-              arguments: {
-                'horario': initialRouteData?['horario'] ?? '08:00',
-                'medicationIds': List<String>.from(initialRouteData?['medicationIds'] ?? []),
-              },
-            );
-          });
-        }
-      }
-    } catch (e) {
-      print('DEBUG: Erro ao obter rota inicial: $e');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -143,34 +110,14 @@ class MyAppState extends State<MyApp> {
         print('DEBUG: Gerando rota para: ${settings.name}, argumentos: ${settings.arguments}');
         if (settings.name == 'medication_alert') {
           final args = settings.arguments as Map<String, dynamic>?;
-          if (args == null || args['medicationIds'] == null || args['horario'] == null) {
-            print('DEBUG: Argumentos inválidos, redirecionando para WelcomeScreen');
-            return MaterialPageRoute(
-              builder: (context) => WelcomeScreen(
-                database: widget.database!,
-                notificationService: widget.notificationService,
-              ),
-            );
-          }
-          final medicationIds = args['medicationIds'] is List
+          final horario = args?['horario'] ?? '08:00';
+          final medicationIds = args != null && args['medicationIds'] is List
               ? List<String>.from(args['medicationIds'].map((e) => e.toString()))
               : <String>[];
-          print('DEBUG: medicationIds: $medicationIds, Tipo: ${medicationIds.runtimeType}');
-          if (medicationIds.isEmpty) {
-            print('DEBUG: Lista de medicationIds vazia, tentando buscar por horário');
-            return MaterialPageRoute(
-              builder: (context) => MedicationAlertScreen(
-                horario: args['horario'] ?? '08:00',
-                medicationIds: <String>[],
-                database: widget.database!,
-                notificationService: widget.notificationService,
-              ),
-            );
-          }
           return MaterialPageRoute(
             builder: (context) => MedicationAlertScreen(
-              horario: args['horario'] ?? '08:00',
-              medicationIds: medicationIds, // Linha 172
+              horario: horario,
+              medicationIds: medicationIds,
               database: widget.database!,
               notificationService: widget.notificationService,
             ),
@@ -212,67 +159,100 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('DEBUG: Iniciando main');
 
-  runApp(const MaterialApp(
-    home: Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    ),
-  ));
+  await Firebase.initializeApp(); // Adicionado para inicializar o Firebase
 
-  try {
-    final notificationService = NotificationService();
-    final database = await DatabaseSingleton.getInstance();
-    await notificationService.init(database);
-    print('DEBUG: NotificationService inicializado com sucesso no main');
+  runApp(FutureBuilder<Widget>(
+    future: Future(() async {
+      try {
+        final notificationService = NotificationService();
+        final database = await DatabaseSingleton.getInstance();
+        await notificationService.init(database);
+        print('DEBUG: NotificationService inicializado com sucesso no main');
 
-    Widget initialScreen = WelcomeScreen(
-      database: database,
-      notificationService: notificationService,
-    );
-    final notification = await notificationService.getInitialNotification();
-    if (notification != null && notification.payload != null) {
-      final payload = notification.payload!;
-      print('DEBUG: Payload recebido: $payload, Tipo: ${payload.runtimeType}');
-      if (payload.contains('|')) {
-        final parts = payload.split('|');
-        print('DEBUG: Partes do payload: $parts, Tipo: ${parts.runtimeType}');
-        if (parts.length < 2 || parts[1].isEmpty) {
-          print('DEBUG: Payload inválido: $payload');
-          initialScreen = WelcomeScreen(
-            database: database,
-            notificationService: notificationService,
-          );
+        Widget initialScreen = WelcomeScreen(
+          database: database,
+          notificationService: notificationService,
+        );
+
+        // Verificar notificação inicial
+        final notification = await notificationService.getInitialNotification();
+        if (notification != null && notification.payload != null) {
+          final payload = notification.payload!;
+          print('DEBUG: Payload recebido: $payload, Tipo: ${payload.runtimeType}');
+          if (payload.contains('|')) {
+            final parts = payload.split('|');
+            print('DEBUG: Partes do payload: $parts, Tipo: ${parts.runtimeType}');
+            if (parts.length >= 2 && parts[1].isNotEmpty) {
+              final horario = parts[0];
+              final rawIds = parts[1].split(',');
+              final medicationIds = List<String>.from(rawIds.map((e) => e.toString()));
+              print('DEBUG: medicationIds final: $medicationIds, Tipo: ${medicationIds.runtimeType}');
+              initialScreen = MedicationAlertScreen(
+                horario: horario,
+                medicationIds: medicationIds,
+                database: database,
+                notificationService: notificationService,
+              );
+              await notificationService.cancelNotification(notification.id!);
+              print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
+            }
+          }
         } else {
-          final horario = parts[0];
-          print('DEBUG: Horario: $horario, Tipo: ${horario.runtimeType}');
-          final rawIds = parts[1].split(',');
-          print('DEBUG: IDs brutos: $rawIds, Tipo: ${rawIds.runtimeType}');
-          final medicationIds = List<String>.from(rawIds.map((e) => e.toString()));
-          print('DEBUG: medicationIds final: $medicationIds, Tipo: ${medicationIds.runtimeType}');
-          initialScreen = MedicationAlertScreen(
-            horario: horario,
-            medicationIds: medicationIds,
-            database: database,
-            notificationService: notificationService,
-          );
-          notificationService.cancelNotification(notification.id!);
-          print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
+          // Verificar rota inicial via MethodChannel
+          const platform = MethodChannel('com.claudinei.medialerta/navigation');
+          try {
+            final result = await platform.invokeMethod('getInitialRoute');
+            if (result != null) {
+              final routeData = Map<String, dynamic>.from(result);
+              print('DEBUG: Initial route data: $routeData');
+              if (routeData['route'] == 'medication_alert') {
+                final horario = routeData['horario'] ?? '08:00';
+                final medicationIds = List<String>.from(routeData['medicationIds'] ?? []);
+                if (medicationIds.isNotEmpty) {
+                  initialScreen = MedicationAlertScreen(
+                    horario: horario,
+                    medicationIds: medicationIds,
+                    database: database,
+                    notificationService: notificationService,
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            print('DEBUG: Erro ao obter rota inicial: $e');
+          }
         }
-      }
-    }
 
-    runApp(MyApp(
-      database: database,
-      notificationService: notificationService,
-      initialScreen: initialScreen,
-    ));
-  } catch (e) {
-    print('DEBUG: Erro durante inicialização do aplicativo: $e');
-    runApp(const MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: Text('Erro ao inicializar o aplicativo. Tente novamente.'),
-        ),
-      ),
-    ));
-  }
+        return MyApp(
+          database: database,
+          notificationService: notificationService,
+          initialScreen: initialScreen,
+        );
+      } catch (e, stackTrace) {
+        print('DEBUG: Erro durante inicialização do aplicativo: $e');
+        print('DEBUG: StackTrace: $stackTrace');
+        throw e;
+      }
+    }),
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return const MaterialApp(
+          home: Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          ),
+        );
+      } else if (snapshot.hasError) {
+        print('DEBUG: Erro no FutureBuilder: ${snapshot.error}');
+        return MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: Text('Erro ao inicializar o aplicativo: ${snapshot.error}'),
+            ),
+          ),
+        );
+      } else {
+        return snapshot.data as Widget;
+      }
+    },
+  ));
 }
