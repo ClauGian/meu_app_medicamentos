@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'dart:io';
 import '../notification_service.dart';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+
 
 class MedicationAlertScreen extends StatefulWidget {
   final String horario;
