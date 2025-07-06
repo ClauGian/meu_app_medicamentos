@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart'; // Mantenha, pois NotificationService pode usá-lo
 import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/welcome_screen.dart';
@@ -13,141 +13,190 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('DEBUG: Iniciando main');
 
-  await Firebase.initializeApp();
+  final startTime = DateTime.now().millisecondsSinceEpoch;
+  late sqflite.Database database;
+  late NotificationService notificationService;
 
-  final notificationService = NotificationService();
-  final databaseHelper = DatabaseHelper();
-  final database = await databaseHelper.database;
-  await notificationService.init(database);
-  print('DEBUG: NotificationService inicializado com sucesso no main');
+  try {
+    // Inicializar Firebase e banco de dados em paralelo
+    final firebaseFuture = Firebase.initializeApp();
+    final databaseHelper = DatabaseHelper();
+    final databaseFuture = databaseHelper.database;
 
-  runApp(FutureBuilder<Widget>(
-    future: Future(() async {
-      try {
-        Widget initialScreen = WelcomeScreen(
-          database: database,
-          notificationService: notificationService,
-        );
+    await Future.wait([
+      firebaseFuture.then((_) {
+        print('DEBUG: Firebase inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      }),
+      databaseFuture.then((db) {
+        database = db;
+        print('DEBUG: Database inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      }),
+    ]);
 
-        // Verificar notificação inicial
-        final notification = await notificationService.getInitialNotification();
-        if (notification != null && notification.payload != null) {
-          final payload = notification.payload!;
-          print('DEBUG: Payload recebido: $payload, Tipo: ${payload.runtimeType}');
-          if (payload.contains('|')) {
-            final parts = payload.split('|');
-            print('DEBUG: Partes do payload: $parts, Tipo: ${parts.runtimeType}');
-            if (parts.length >= 2 && parts[1].isNotEmpty) {
-              final horario = parts[0];
-              final rawIds = parts[1].split(',');
-              final medicationIds = List<String>.from(rawIds.map((e) => e.toString()));
-              print('DEBUG: medicationIds final: $medicationIds, Tipo: ${medicationIds.runtimeType}');
-              initialScreen = MedicationAlertScreen(
-                horario: horario,
-                medicationIds: medicationIds,
-                database: database,
-                notificationService: notificationService,
-              );
-              await notificationService.cancelNotification(notification.id!);
-              print('DEBUG: Notificação inicial ID ${notification.id} cancelada');
-            }
-          }
-        }
+    notificationService = NotificationService();
+    await notificationService.init(database);
+    print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
-        // Configurar MethodChannel para navegação
-        const platform = MethodChannel('com.claudinei.medialerta/navigation');
-        platform.setMethodCallHandler((call) async {
-          if (call.method == 'navigateToMedicationAlert') {
-            final args = call.arguments as Map;
-            final horario = args['horario'] as String? ?? '08:00';
-            final medicationIds = List<String>.from(args['medicationIds'].map((e) => e.toString()));
-            print('DEBUG: navigateToMedicationAlert chamado: horario=$horario, medicationIds=$medicationIds');
-            if (medicationIds.isNotEmpty && NotificationService.navigatorKey.currentState != null) {
-              NotificationService.navigatorKey.currentState!.pushReplacement(
-                MaterialPageRoute(
-                  builder: (context) => MedicationAlertScreen(
-                    horario: horario,
-                    medicationIds: medicationIds,
-                    database: database,
-                    notificationService: notificationService,
-                  ),
-                ),
-              );
-            } else {
-              print('DEBUG: Navegação ignorada: medicationIds=$medicationIds, navigatorKey.currentState=${NotificationService.navigatorKey.currentState}');
-            }
-          }
-        });
+    // Remove toda a lógica de determinação da tela inicial aqui.
+    // Ela será feita no FutureBuilder dentro do MyApp.
 
-        return MyApp(
-          database: database,
-          notificationService: notificationService,
-          initialScreen: initialScreen,
-        );
-      } catch (e, stackTrace) {
-        print('DEBUG: Erro durante inicialização do aplicativo: $e');
-        print('DEBUG: StackTrace: $stackTrace');
-        throw e;
-      }
-    }),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const MaterialApp(
-          home: Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+    runApp(MyApp(
+      database: database,
+      notificationService: notificationService,
+      // initialScreen: initialScreen, <-- Remova esta linha
+      // initialRouteData: initialRouteData, <-- Remova esta linha se existir
+    ));
+
+    print('DEBUG: App rodando - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+  } catch (e, stackTrace) {
+    print('DEBUG: Erro na inicialização do main: $e');
+    print('DEBUG: StackTrace: $stackTrace');
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text('Erro ao iniciar o aplicativo: $e'),
           ),
-        );
-      } else if (snapshot.hasError) {
-        print('DEBUG: Erro no FutureBuilder: ${snapshot.error}');
-        return MaterialApp(
-          home: Scaffold(
-            body: Center(
-              child: Text('Erro ao inicializar o aplicativo: ${snapshot.error}'),
-            ),
-          ),
-        );
-      } else {
-        return snapshot.data as Widget;
-      }
-    },
-  ));
+        ),
+      ),
+    );
+  }
 }
+
+// A SplashScreen não é mais usada se o FutureBuilder for a home direta.
+// Se quiser uma tela de splash, ela precisaria ser gerenciada de outra forma,
+// talvez pelo próprio FutureBuilder retornando um Container com a imagem.
+/*
+class SplashScreen extends StatelessWidget {
+  const SplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.blue,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/icone_ma.png',
+              width: 100,
+              height: 100,
+            ),
+            const SizedBox(height: 20),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'MediAlerta',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+*/
 
 class MyApp extends StatefulWidget {
   final sqflite.Database database;
   final NotificationService notificationService;
-  final Widget initialScreen;
+  // final Widget initialScreen; // <-- REMOVA ESTE CAMPO AQUI TAMBÉM
+  // final Map<String, dynamic>? initialRouteData; // <-- REMOVA ESTE CAMPO AQUI TAMBÉM
 
   const MyApp({
     super.key,
     required this.database,
     required this.notificationService,
-    required this.initialScreen,
+    // initialScreen, // <-- REMOVA ESTE PARÂMETRO NOMEADO
+    // initialRouteData, // <-- REMOVA ESTE PARÂMETRO NOMEADO
   });
 
   @override
-  State<MyApp> createState() => MyAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
-class MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> {
+  // Remova o ValueNotifier, ele não é necessário com o FutureBuilder na home
+  // final ValueNotifier<Map<String, dynamic>?> _currentInitialRouteData = ValueNotifier(null);
+
+  @override
+  void initState() {
+    super.initState();
+    // A lógica de navegação em tempo de execução via MethodChannel
+    // deve ser configurada no NotificationService, não aqui.
+    // O NotificationService.init() já deveria estar fazendo isso.
+    // Vamos garantir que a _handlePlatformMethodCall esteja no NotificationService.
+  }
+
   @override
   Widget build(BuildContext context) {
+    print('DEBUG: Construindo MyApp - FutureBuilder irá obter getInitialRouteData');
     return MaterialApp(
       title: 'MediAlerta',
-      navigatorKey: NotificationService.navigatorKey,
+      navigatorKey: NotificationService.navigatorKey, // Garanta que esta key esteja aqui
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: const Color(0xFFF0F0F0),
       ),
-      home: widget.initialScreen,
+      // A HOME DO SEU APP É ONDE A LÓGICA DE DETECÇÃO DA ROTA INICIAL DEVE ACONTECER
+      home: FutureBuilder<Map<String, dynamic>?>(
+        future: widget.notificationService.getInitialRouteData(), // Chamada ao método do NotificationService
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Mostra um CircularProgressIndicator enquanto aguarda os dados da rota inicial
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          final initialData = snapshot.data;
+          print('DEBUG: initialData no FutureBuilder: $initialData');
+
+          if (initialData != null && initialData['route'] == 'medication_alert') {
+            final horario = initialData['horario'] as String? ?? '08:00';
+            final medicationIds =
+                (initialData['medicationIds'] as List<dynamic>?)
+                        ?.map((e) => e.toString())
+                        .toList() ??
+                    <String>[];
+            print('DEBUG: Definindo MedicationAlertScreen como tela inicial via FutureBuilder.');
+            return MedicationAlertScreen(
+              horario: horario,
+              medicationIds: medicationIds,
+              database: widget.database,
+              notificationService: widget.notificationService,
+            );
+          } else {
+            print('DEBUG: Nenhuma rota especial, definindo WelcomeScreen como tela inicial.');
+            return WelcomeScreen(
+              database: widget.database,
+              notificationService: widget.notificationService,
+            );
+          }
+        },
+      ),
       onGenerateRoute: (settings) {
         print('DEBUG: Gerando rota para: ${settings.name}, argumentos: ${settings.arguments}');
+        // Esta parte do onGenerateRoute só deve ser para navegação interna do app,
+        // não para o lançamento inicial por notificação/alarme, que é handled pelo 'home' (FutureBuilder).
+
         if (settings.name == 'medication_alert') {
           final args = settings.arguments as Map<String, dynamic>?;
-          final horario = args?['horario'] ?? '08:00';
-          final medicationIds = args != null && args['medicationIds'] is List
-              ? List<String>.from(args['medicationIds'].map((e) => e.toString()))
-              : <String>[];
+          final horario = args?['horario'] as String? ?? '08:00';
+          final medicationIds = (args?['medicationIds'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              <String>[];
+          print('DEBUG: Construindo MedicationAlertScreen via onGenerateRoute com horario=$horario, medicationIds=$medicationIds');
           return MaterialPageRoute(
             builder: (context) => MedicationAlertScreen(
               horario: horario,

@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/services.dart';
+import 'dart:isolate';
 
 final _processedNotificationIds = <int>{};
 
@@ -17,7 +18,12 @@ void notificationBackgroundHandler(NotificationResponse response) {
 
 class NotificationService {
   static final NotificationService _notificationService = NotificationService._internal();
-  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();  
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  static const _fullscreenChannel = MethodChannel('com.claudinei.medialerta/fullscreen');
+  // Certifique-se que o NAVIGATION_CHANNEL está com o nome correto
+  static const _navigationChannel = MethodChannel('com.claudinei.medialerta/navigation'); // <--- Certifique-se que esta constante está definida
+
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   Database? _database;
 
@@ -27,89 +33,109 @@ class NotificationService {
 
   NotificationService._internal();
 
-Future<void> init(Database database) async {
-  final int startTime = DateTime.now().millisecondsSinceEpoch;
-  print('DEBUG: Iniciando NotificationService.init - Elapsed: 0ms');
-
-  _database = database;
-
-  try {
-    // Inicializar o timezone
-    tz.initializeTimeZones();
-    print('DEBUG: Timezone inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-    final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    if (androidPlugin == null) {
-      print('DEBUG: Falha ao resolver AndroidFlutterLocalNotificationsPlugin');
-      throw Exception('Falha ao resolver AndroidFlutterLocalNotificationsPlugin');
+  // NOVO MÉTODO: Para obter a rota inicial do lado nativo
+  Future<Map<String, dynamic>?> getInitialRouteData() async {
+    try {
+      // Usa o _navigationChannel (corrigido do seu MainActivity.kt)
+      final Map<dynamic, dynamic>? result = await _navigationChannel.invokeMethod('getInitialRoute');
+      if (result != null) {
+        // Converte o resultado para um Map<String, dynamic>
+        return Map<String, dynamic>.from(result);
+      }
+      return null;
+    } on PlatformException catch (e) {
+      print("DEBUG: Erro ao obter initialRouteData: ${e.message}");
+      return null;
     }
-
-    bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
-    print('DEBUG: Permissão de notificações concedida: $notificationsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-    if (notificationsGranted == null || !notificationsGranted) {
-      print('DEBUG: Permissão de notificações não concedida');
-      throw Exception('Permissão de notificações não concedida');
-    }
-
-    bool? exactAlarmsGranted = await androidPlugin.requestExactAlarmsPermission();
-    print('DEBUG: Permissão de alarme exato concedida: $exactAlarmsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-    if (exactAlarmsGranted == null || !exactAlarmsGranted) {
-      print('DEBUG: Permissão de alarme exato não concedida');
-      throw Exception('Permissão de alarme exato não concedida');
-    }
-
-    bool? fullScreenIntentGranted = await androidPlugin.requestFullScreenIntentPermission();
-    print('DEBUG: Permissão de tela cheia concedida (inicial): $fullScreenIntentGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-    if (fullScreenIntentGranted == null || !fullScreenIntentGranted) {
-      print('DEBUG: Permissão de tela cheia não concedida');
-      throw Exception('Permissão de tela cheia não concedida');
-    }
-
-    await androidPlugin.createNotificationChannelGroup(
-      const AndroidNotificationChannelGroup(
-        'medication_group',
-        'Medicamentos',
-        description: 'Grupo de notificações para lembretes de medicamentos',
-      ),
-    );
-    print('DEBUG: Grupo de canais de notificação criado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-    await androidPlugin.createNotificationChannel(
-      const AndroidNotificationChannel(
-        'medication_channel',
-        'Lembrete de Medicamento',
-        description: 'Notificações para lembretes de medicamentos',
-        importance: Importance.max,
-        playSound: true,
-        sound: RawResourceAndroidNotificationSound('alarm'),
-        enableVibration: true,
-        enableLights: true,
-        ledColor: Colors.blue,
-        showBadge: false,
-        groupId: 'medication_group',
-      ),
-    );
-    print('DEBUG: Canal de notificação configurado com som: alarm.mp3 - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-    const initializationSettings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    );
-
-    await _notificationsPlugin.initialize(
-      initializationSettings, // Corrigido de "initialization tiveSettings"
-      onDidReceiveNotificationResponse: handleNotificationResponse,
-      onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
-    );
-    print('DEBUG: Plugin de notificações inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-    await AndroidAlarmManager.initialize();
-    print('DEBUG: AndroidAlarmManager inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-  } catch (e, stackTrace) {
-    print('DEBUG: Erro durante inicialização do NotificationService: $e');
-    print('DEBUG: StackTrace: $stackTrace');
-    rethrow;
   }
-}
+  
+
+  Future<void> init(Database database) async {
+    final int startTime = DateTime.now().millisecondsSinceEpoch;
+    print('DEBUG: Iniciando NotificationService.init - Elapsed: 0ms');
+
+    _database = database;
+
+    try {
+      // Move tz.initializeTimeZones() to an Isolate
+      await Isolate.run(() {
+        tz.initializeTimeZones();
+      });
+      print('DEBUG: Timezone inicializado via Isolate - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+      final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin == null) {
+        print('DEBUG: Falha ao resolver AndroidFlutterLocalNotificationsPlugin');
+        throw Exception('Falha ao resolver AndroidFlutterLocalNotificationsPlugin');
+      }
+
+      bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
+      print('DEBUG: Permissão de notificações concedida: $notificationsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      if (notificationsGranted == null || !notificationsGranted) {
+        print('DEBUG: Permissão de notificações não concedida');
+        throw Exception('Permissão de notificações não concedida');
+      }
+
+      bool? exactAlarmsGranted = await androidPlugin.requestExactAlarmsPermission();
+      print('DEBUG: Permissão de alarme exato concedida: $exactAlarmsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      if (exactAlarmsGranted == null || !exactAlarmsGranted) {
+        print('DEBUG: Permissão de alarme exato não concedida');
+        throw Exception('Permissão de alarme exato não concedida');
+      }
+
+      bool? fullScreenIntentGranted = await androidPlugin.requestFullScreenIntentPermission();
+      print('DEBUG: Permissão de tela cheia concedida (inicial): $fullScreenIntentGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      if (fullScreenIntentGranted == null || !fullScreenIntentGranted) {
+        print('DEBUG: Permissão de tela cheia não concedida');
+        throw Exception('Permissão de tela cheia não concedida');
+      }
+
+      await androidPlugin.createNotificationChannelGroup(
+        const AndroidNotificationChannelGroup(
+          'medication_group',
+          'Medicamentos',
+          description: 'Grupo de notificações para lembretes de medicamentos',
+        ),
+      );
+      print('DEBUG: Grupo de canais de notificação criado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'medication_channel',
+          'Lembrete de Medicamento',
+          description: 'Notificações para lembretes de medicamentos',
+          importance: Importance.max,
+          playSound: true,
+          sound: RawResourceAndroidNotificationSound('alarm'),
+          enableVibration: true,
+          enableLights: true,
+          ledColor: Colors.blue,
+          showBadge: false,
+          groupId: 'medication_group',
+        ),
+      );
+      print('DEBUG: Canal de notificação configurado com som: alarm.mp3 - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+      const initializationSettings = InitializationSettings(
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      );
+
+      await _notificationsPlugin.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: handleNotificationResponse,
+        onDidReceiveBackgroundNotificationResponse: notificationBackgroundHandler,
+      );
+      print('DEBUG: Plugin de notificações inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+      await AndroidAlarmManager.initialize();
+      print('DEBUG: AndroidAlarmManager inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro durante inicialização do NotificationService: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+      rethrow;
+    }
+    print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+  }
 
   Future<NotificationResponse?> getInitialNotification() async {
     print('DEBUG: Verificando notificação inicial');
@@ -138,7 +164,7 @@ Future<void> init(Database database) async {
   }
 
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
-    print('DEBUG: Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
+    print('DEBUG: Inස  Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
     if (response.payload == null || response.id == null) {
       print('DEBUG: ERRO: Payload ou ID nulo');
       return;
@@ -193,26 +219,34 @@ Future<void> init(Database database) async {
     }
   }
 
-  Future<void> showNotification({
+Future<void> showNotification({
     required int id,
     required String title,
-    required String body,
+    required String body, // 'body' é o conteúdo da notificação, não o payload para a Activity.
     required String sound,
-    required String payload,
+    required String payload, // 'payload' é a string que contém 'horario|medicationIds'.
   }) async {
     print('DEBUG: Iniciando showNotification com id: $id, title: $title, sound: $sound, payload: $payload');
-    print('DEBUG: navigatorKey.currentContext disponível: ${navigatorKey.currentContext != null}');
+    // REMOVIDO: A verificação de navigatorKey.currentContext para decidir se chama a Activity nativa
+    // A chamada à Activity nativa agora é feita de forma mais robusta, independentemente do context.
+
+    // Tentar chamar FullScreenAlarmActivity via MethodChannel
     try {
-      print('DEBUG: Tentando chamar FullScreenAlarmActivity via MethodChannel');
-      const platform = MethodChannel('com.claudinei.medialerta/fullscreen');
-      await platform.invokeMethod('showFullScreenAlarm', {
-        'title': title,
-        'body': payload,
+      print('DEBUG: Tentando chamar FullScreenAlarmActivity via MethodChannel (usando _fullscreenChannel)');
+      // NOVO: Usar o MethodChannel estático definido no Trecho 1
+      await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
+        // CORREÇÃO: Passar os dados que a Activity nativa espera
+        'horario': extractHorarioFromPayload(payload),
+        'medicationIds': extractMedicationIdsFromPayload(payload),
+        'payload': payload, // É bom passar o payload completo também para o lado nativo
+        'title': title, // Título da notificação pode ser útil na Activity
+        'body': body,   // Corpo da notificação também pode ser útil
       });
-      print('DEBUG: FullScreenAlarmActivity chamada com sucesso via MethodChannel');
+      print('DEBUG: FullScreenAlarmActivity chamada com sucesso via MethodChannel.');
     } catch (e, stackTrace) {
-      print('DEBUG: Erro ao chamar FullScreenAlarmActivity: $e');
+      print('DEBUG: Erro ao chamar FullScreenAlarmActivity via MethodChannel: $e');
       print('DEBUG: StackTrace: $stackTrace');
+      // Se houver erro ao chamar a Activity de tela cheia, ainda exibe a notificação padrão
       await _notificationsPlugin.show(
         id,
         title,
@@ -241,6 +275,18 @@ Future<void> init(Database database) async {
       );
       print('DEBUG: Notificação padrão exibida como fallback');
     }
+  }
+
+  // Certifique-se de que estas funções auxiliares existam na sua classe NotificationService,
+  // elas são usadas acima para extrair dados do payload.
+  String extractHorarioFromPayload(String payload) {
+    final parts = payload.split('|');
+    return parts.isNotEmpty ? parts[0] : '08:00';
+  }
+
+  List<String> extractMedicationIdsFromPayload(String payload) {
+    final parts = payload.split('|');
+    return parts.length > 1 ? parts[1].split(',').where((id) => id.isNotEmpty).toList() : [];
   }
 
   Future<void> scheduleNotification({

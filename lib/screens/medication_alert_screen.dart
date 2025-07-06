@@ -46,41 +46,33 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
 
   Future<void> _fetchMedications() async {
     final startTime = DateTime.now();
-    final allMedications = await widget.database.query('medications');
-    print('DEBUG: Todos os medicamentos no banco: $allMedications');
     try {
       print('DEBUG: medicationIds recebidos: ${widget.medicationIds}');
       print('DEBUG: Tipo de medicationIds: ${widget.medicationIds.runtimeType}');
 
+      List<Map<String, dynamic>> result;
       if (widget.medicationIds.isEmpty) {
         print('DEBUG: Lista de medicationIds vazia, verificando medicamentos para o horário ${widget.horario}');
-        // Buscar medicamentos com base no horário, se medicationIds estiver vazio
-        final result = await widget.database.query(
+        result = await widget.database.query(
           'medications',
           where: 'horarios LIKE ?',
           whereArgs: ['%${widget.horario}%'],
         );
         print('DEBUG: Medicamentos encontrados para horário ${widget.horario}: $result');
-        setState(() {
-          medications = result;
-          isTaken = List<bool>.filled(result.length, false);
-          isSkipped = List<bool>.filled(result.length, false);
-          isLoading = false;
-        });
-        return;
+      } else {
+        final List<int> intMedicationIds = widget.medicationIds.map((id) {
+          print('DEBUG: Convertendo ID: $id');
+          return int.parse(id);
+        }).toList();
+        print('DEBUG: IDs convertidos para inteiros: $intMedicationIds');
+
+        result = await widget.database.query(
+          'medications',
+          columns: ['id', 'nome', 'quantidade', 'dosagem_diaria', 'horarios', 'foto_embalagem', 'cuidador_id', 'skip_count'],
+          where: 'id IN (${intMedicationIds.map((_) => '?').join(',')})',
+          whereArgs: intMedicationIds,
+        );
       }
-
-      final List<int> intMedicationIds = widget.medicationIds.map((id) {
-        print('DEBUG: Convertendo ID: $id');
-        return int.parse(id);
-      }).toList();
-      print('DEBUG: IDs convertidos para inteiros: $intMedicationIds');
-
-      final result = await widget.database.query(
-        'medications',
-        where: 'id IN (${intMedicationIds.map((_) => '?').join(',')})',
-        whereArgs: intMedicationIds,
-      );
 
       print('DEBUG: Medicamentos buscados: $result');
       print('DEBUG: Tempo de _fetchMedications: ${DateTime.now().difference(startTime).inMilliseconds}ms');
@@ -100,6 +92,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       });
     }
   }
+
 
   void _checkAndCloseIfDone() {
     bool allProcessed = true;

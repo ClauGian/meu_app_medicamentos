@@ -7,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.widget.Button
 import android.content.Intent
 import android.view.View
+import android.util.Log // Importar Log para logs de depuração
 
 class FullScreenAlarmActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
@@ -25,23 +26,26 @@ class FullScreenAlarmActivity : AppCompatActivity() {
         playSound()
 
         val viewButton: Button = findViewById(R.id.view_button)
-        val payload = intent.getStringExtra("body") ?: "08:00|1,2"
-        val parts = payload.split("|")
-        val horario = if (parts.isNotEmpty()) parts[0] else "08:00"
-        val medicationIds = if (parts.size > 1) parts[1].split(",").filter { it.isNotEmpty() } else emptyList()
+
+        // CORREÇÃO AQUI: Obter 'horario' e 'medicationIds' diretamente dos extras do Intent
+        // Estes são os dados que a MainActivity está enviando de forma explícita.
+        val horario = intent.getStringExtra("horario") ?: "08:00"
+        val medicationIds = intent.getStringArrayListExtra("medicationIds") ?: arrayListOf()
+
+        // O 'payload' completo também pode ser útil para depuração, mas não é usado para parsear novamente 'horario' e 'medicationIds'
+        val receivedPayload = intent.getStringExtra("payload")
+        Log.d("MediAlerta", "FullScreenAlarmActivity recebida. Horário: $horario, IDs: $medicationIds, Payload Recebido: $receivedPayload")
+
 
         viewButton.setOnClickListener {
-            mediaPlayer?.stop()
-            mediaPlayer?.release()
-            mediaPlayer = null
-
+            stopAndReleaseMediaPlayer()
             val intent = Intent(this, MainActivity::class.java).apply {
                 putExtra("route", "medication_alert")
-                putExtra("horario", horario)
-                putStringArrayListExtra("medicationIds", ArrayList(medicationIds))
+                putExtra("horario", horario) // Usar o horário extraído acima
+                putStringArrayListExtra("medicationIds", ArrayList(medicationIds)) // Usar os IDs extraídos acima
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
-            android.util.Log.d("MediAlerta", "Payload sendo passado: horario=$horario, medicationIds=$medicationIds")
+            Log.d("MediAlerta", "Redirecionando para MainActivity com: horario=$horario, medicationIds=$medicationIds")
             startActivity(intent)
             finish()
         }
@@ -49,18 +53,57 @@ class FullScreenAlarmActivity : AppCompatActivity() {
 
     private fun playSound() {
         try {
-            mediaPlayer = MediaPlayer.create(this, R.raw.alarm)
-            mediaPlayer?.isLooping = true
-            mediaPlayer?.start()
+            if (mediaPlayer == null) {
+                mediaPlayer = MediaPlayer.create(this, R.raw.alarm)
+                mediaPlayer?.setOnPreparedListener {
+                    mediaPlayer?.isLooping = true
+                    mediaPlayer?.start()
+                    Log.d("MediAlerta", "MediaPlayer iniciado em playSound após preparo")
+                }
+                mediaPlayer?.setOnErrorListener { mp, what, extra ->
+                    Log.e("MediAlerta", "Erro no MediaPlayer: what=$what, extra=$extra")
+                    stopAndReleaseMediaPlayer()
+                    true
+                }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
+            Log.e("MediAlerta", "Erro ao iniciar MediaPlayer: $e")
+            stopAndReleaseMediaPlayer()
         }
+    }
+
+    private fun stopAndReleaseMediaPlayer() {
+        try {
+            if (mediaPlayer != null) {
+                if (mediaPlayer?.isPlaying == true) {
+                    mediaPlayer?.stop()
+                }
+                mediaPlayer?.reset()
+                mediaPlayer?.release()
+                mediaPlayer = null
+                Log.d("MediAlerta", "MediaPlayer liberado em stopAndReleaseMediaPlayer")
+            }
+        } catch (e: Exception) {
+            Log.e("MediAlerta", "Erro ao liberar MediaPlayer: $e")
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopAndReleaseMediaPlayer()
+        Log.d("MediAlerta", "MediaPlayer liberado em onPause")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stopAndReleaseMediaPlayer()
+        Log.d("MediAlerta", "MediaPlayer liberado em onStop")
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-        mediaPlayer = null
+        stopAndReleaseMediaPlayer()
+        Log.d("MediAlerta", "MediaPlayer liberado em onDestroy")
     }
 }
