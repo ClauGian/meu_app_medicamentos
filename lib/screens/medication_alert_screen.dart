@@ -29,13 +29,12 @@ class MedicationAlertScreen extends StatefulWidget {
 }
 
 class MedicationAlertScreenState extends State<MedicationAlertScreen> {
-  final NotificationService notificationService = NotificationService();
   List<Map<String, dynamic>> medications = [];
   List<bool> isTaken = [];
   List<bool> isSkipped = [];
   bool isLoading = true;
 
-  static List<Map<String, dynamic>> _pendingDelays = [];
+  static final List<Map<String, dynamic>> _pendingDelays = [];
   static Timer? _delayTimer;
 
   @override
@@ -43,6 +42,8 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     super.initState();
     _fetchMedications();
   }
+
+
 
   Future<void> _fetchMedications() async {
     final startTime = DateTime.now();
@@ -126,7 +127,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     print('DEBUG: Nova quantidade após atualização: $novaQuantidade');
 
     if (novaQuantidade <= dosagemDiaria * 2) {
-      await notificationService.showNotification(
+      await widget.notificationService.showNotification(
         id: 999,
         title: 'Estoque Baixo',
         body: 'Restam poucos comprimidos de ${medication['nome']}. Reabasteça!',
@@ -170,7 +171,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
         final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
 
         try {
-          await notificationService.scheduleNotification(
+          await widget.notificationService.scheduleNotification(
             id: notificationId,
             title: 'Alerta de Medicamento: ${widget.horario}',
             body: 'Você tem ${medicationIds.length} medicamentos adiados para tomar',

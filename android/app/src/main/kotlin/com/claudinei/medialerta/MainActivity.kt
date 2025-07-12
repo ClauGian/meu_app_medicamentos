@@ -84,38 +84,53 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
-        // Recupera dados do intent. Se estiver vazio, initialRouteData será definido como default null/vazio.
-        val route = intent.getStringExtra("route")
-        val horario = intent.getStringExtra("horario")
-        val medicationIds = intent.getStringArrayListExtra("medicationIds") ?: arrayListOf()
+    // Recupera dados do intent
+    val route = intent.getStringExtra("route")
+    val horario = intent.getStringExtra("horario")
+    val medicationIds = intent.getStringArrayListExtra("medicationIds") ?: arrayListOf()
+    val payload = intent.getStringExtra("payload")
+    val notificationId = intent.getIntExtra("notificationId", -1)
 
-        Log.d("MediAlerta", "handleIntent: route=$route, horario=$horario, medicationIds=$medicationIds")
+    Log.d("MediAlerta", "handleIntent: route=$route, horario=$horario, medicationIds=$medicationIds, payload=$payload, notificationId=$notificationId")
 
+    // Se o payload estiver presente (vindo da notificação nativa ou FullScreenAlarmActivity), extrair horario e medicationIds
+    if (payload != null && payload.contains("|")) {
+        val payloadParts = payload.split("|")
+        if (payloadParts.size >= 2) {
+        val payloadHorario = payloadParts[0]
+        val payloadMedicationIds = payloadParts[1].split(",").filter { it.isNotEmpty() }
+        Log.d("MediAlerta", "Payload processado: horario=$payloadHorario, medicationIds=$payloadMedicationIds")
+
+        initialRouteData = mapOf(
+            "route" to "medication_alert",
+            "horario" to payloadHorario,
+            "medicationIds" to payloadMedicationIds
+        )
+        } else {
+        Log.d("MediAlerta", "Payload inválido: $payload")
         initialRouteData = mapOf(
             "route" to route,
             "horario" to horario,
             "medicationIds" to medicationIds
         )
-
-        // !!! IMPORTANTE: REMOVA A CHAMADA invokeMethod DIRETA AQUI.
-        // Isso estava causando o tratamento de rota inicial conflitante.
-        // O FutureBuilder no main.dart do Flutter agora é responsável pela rota inicial.
-        /*
-        if (route == "medication_alert" && medicationIds.isNotEmpty()) {
-            flutterEngine?.let {
-                Log.d("MediAlerta", "flutterEngine inicializado, invocando navigateToMedicationAlert imediatamente")
-                MethodChannel(it.dartExecutor.binaryMessenger, CHANNEL).invokeMethod(
-                    "navigateToMedicationAlert",
-                    mapOf(
-                        "horario" to (horario ?: "08:00"),
-                        "medicationIds" to medicationIds
-                    )
-                )
-                Log.d("MediAlerta", "navigateToMedicationAlert invocado com horario=$horario, medicationIds=$medicationIds")
-            } ?: run {
-                Log.d("MediAlerta", "flutterEngine não inicializado, adiando navigateToMedicationAlert")
-            }
         }
-        */
+    } else {
+        initialRouteData = mapOf(
+        "route" to route,
+        "horario" to horario,
+        "medicationIds" to medicationIds
+        )
+    }
+
+    // Chamar getInitialRoute se o FlutterEngine estiver inicializado
+    flutterEngine?.let {
+        Log.d("MediAlerta", "flutterEngine inicializado, invocando getInitialRoute")
+        MethodChannel(it.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL).invokeMethod(
+        "getInitialRoute",
+        initialRouteData
+        )
+    } ?: run {
+        Log.d("MediAlerta", "flutterEngine não inicializado, adiando getInitialRoute")
+    }
     }
 }

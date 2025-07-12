@@ -64,46 +64,6 @@ void main() async {
   }
 }
 
-// A SplashScreen não é mais usada se o FutureBuilder for a home direta.
-// Se quiser uma tela de splash, ela precisaria ser gerenciada de outra forma,
-// talvez pelo próprio FutureBuilder retornando um Container com a imagem.
-/*
-class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.blue,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(
-              'assets/icone_ma.png',
-              width: 100,
-              height: 100,
-            ),
-            const SizedBox(height: 20),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'MediAlerta',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-*/
 
 class MyApp extends StatefulWidget {
   final sqflite.Database database;
@@ -122,6 +82,7 @@ class MyApp extends StatefulWidget {
   @override
   State<MyApp> createState() => _MyAppState();
 }
+
 
 class _MyAppState extends State<MyApp> {
   // Remova o ValueNotifier, ele não é necessário com o FutureBuilder na home

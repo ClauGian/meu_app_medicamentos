@@ -105,8 +105,8 @@ class WelcomeScreen extends StatelessWidget {
                   try {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                          content: Text(
-                              'Teste iniciado: notificação disparada imediatamente!')),
+                        content: Text('Teste iniciado: notificação agendada para daqui 10 segundos!'),
+                      ),
                     );
 
                     final medications = await database.query(
@@ -118,34 +118,34 @@ class WelcomeScreen extends StatelessWidget {
                     if (medications.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                            content:
-                                Text('Nenhum medicamento encontrado para 08:00!')),
+                          content: Text('Nenhum medicamento encontrado para 08:00!'),
+                        ),
                       );
                       _isScheduling = false;
                       return;
                     }
 
-                    final medicationIds =
-                        medications.map((med) => med['id'].toString()).toList();
+                    final medicationIds = medications.map((med) => med['id'].toString()).toList();
                     final payload = '08:00|${medicationIds.join(',')}';
                     print('DEBUG: Payload gerado: $payload');
 
                     final timestamp = DateTime.now().millisecondsSinceEpoch;
-                    final notificationId =
-                        (timestamp.hashCode ^ payload.hashCode).abs() % 1000000;
+                    final notificationId = (timestamp.hashCode ^ payload.hashCode).abs() % 1000000;
 
-                    await notificationService.showNotification(
+                    await notificationService.scheduleNotification(
                       id: notificationId,
                       title: 'Alerta de Medicamento: 08:00',
                       body: 'Você tem ${medicationIds.length} medicamentos para tomar',
-                      sound: 'alarm',
                       payload: payload,
+                      scheduledTime: DateTime.now().add(Duration(seconds: 10)),
+                      sound: 'alarm',
                     );
 
-                    print('DEBUG: Notificação disparada imediatamente');
+                    print('DEBUG: Notificação agendada para daqui 10 segundos');
                   } catch (e) {
+                    print('DEBUG: Erro ao agendar notificação: $e');
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Erro: $e')),
+                      SnackBar(content: Text('Erro ao agendar notificação: $e')),
                     );
                   } finally {
                     _isScheduling = false;

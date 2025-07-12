@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/services.dart';
 import 'dart:isolate';
+import 'dart:ui';
 
 final _processedNotificationIds = <int>{};
 
@@ -33,7 +34,7 @@ class NotificationService {
 
   NotificationService._internal();
 
-  // NOVO MÉTODO: Para obter a rota inicial do lado nativo
+  
   Future<Map<String, dynamic>?> getInitialRouteData() async {
     try {
       // Usa o _navigationChannel (corrigido do seu MainActivity.kt)
@@ -57,11 +58,9 @@ class NotificationService {
     _database = database;
 
     try {
-      // Move tz.initializeTimeZones() to an Isolate
-      await Isolate.run(() {
-        tz.initializeTimeZones();
-      });
-      print('DEBUG: Timezone inicializado via Isolate - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      tz.initializeTimeZones();
+      tz.setLocalLocation(tz.getLocation('America/Sao_Paulo')); // Ajuste para seu fuso horário
+      print('DEBUG: Timezone inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
       final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin == null) {
@@ -127,8 +126,24 @@ class NotificationService {
       );
       print('DEBUG: Plugin de notificações inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
-      await AndroidAlarmManager.initialize();
-      print('DEBUG: AndroidAlarmManager inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      // Inicializar AndroidAlarmManager
+      final bool alarmManagerInitialized = await AndroidAlarmManager.initialize();
+      print('DEBUG: AndroidAlarmManager inicializado: $alarmManagerInitialized - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      if (!alarmManagerInitialized) {
+        print('DEBUG: Falha ao inicializar AndroidAlarmManager');
+        throw Exception('Falha ao inicializar AndroidAlarmManager');
+      }
+
+      // Teste do AndroidAlarmManager
+      await AndroidAlarmManager.oneShot(
+        const Duration(seconds: 2),
+        999999,
+        testAlarmCallback,
+        exact: true,
+        allowWhileIdle: true,
+        wakeup: true,
+      );
+      print('DEBUG: Teste de AndroidAlarmManager agendado para ID 999999');
     } catch (e, stackTrace) {
       print('DEBUG: Erro durante inicialização do NotificationService: $e');
       print('DEBUG: StackTrace: $stackTrace');
@@ -136,6 +151,16 @@ class NotificationService {
     }
     print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
   }
+
+
+
+  @pragma('vm:entry-point')
+  static Future<void> testAlarmCallback(int id, Map<String, dynamic> params) async {
+    print('DEBUG: Teste de AndroidAlarmManager disparado para ID $id com params: $params');
+  }
+
+
+
 
   Future<NotificationResponse?> getInitialNotification() async {
     print('DEBUG: Verificando notificação inicial');
@@ -153,6 +178,8 @@ class NotificationService {
     }
   }
 
+
+
   Future<void> cancelNotification(int id) async {
     print('DEBUG: Cancelando notificação com id: $id');
     try {
@@ -163,8 +190,11 @@ class NotificationService {
     }
   }
 
+
+
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
-    print('DEBUG: Inස  Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
+    print('DEBUG: Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
+
     if (response.payload == null || response.id == null) {
       print('DEBUG: ERRO: Payload ou ID nulo');
       return;
@@ -179,8 +209,9 @@ class NotificationService {
     try {
       await _notificationService._notificationsPlugin.cancel(response.id!);
       print('DEBUG: Notificação nativa ID ${response.id} cancelada');
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('DEBUG: Erro ao cancelar notificação: $e');
+      print('DEBUG: StackTrace: $stackTrace');
     }
 
     try {
@@ -190,10 +221,18 @@ class NotificationService {
         return;
       }
       final horario = payloadParts[0];
-      final medicationIds = payloadParts[1].split(',');
+      final medicationIds = payloadParts[1]
+          .split(',')
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      if (medicationIds.isEmpty) {
+        print('DEBUG: ERRO: Nenhum ID de medicamento válido encontrado no payload: ${response.payload}');
+        return;
+      }
 
       if (_notificationService._database == null) {
-        print('DEBUG: Banco de dados não inicializado no handleNotificationResponse');
+        print('DEBUG: ERRO: Banco de dados não inicializado no handleNotificationResponse');
         return;
       }
 
@@ -203,23 +242,26 @@ class NotificationService {
           MaterialPageRoute(
             builder: (context) => MedicationAlertScreen(
               horario: horario,
-              medicationIds: medicationIds,
+              medicationIds: medicationIds, // Mantido como List<String>
               database: _notificationService._database!,
               notificationService: _notificationService,
             ),
           ),
         );
-        print('DEBUG: Navegação para MedicationAlertScreen concluída');
+        print('DEBUG: Navegação para MedicationAlertScreen concluída com horario=$horario, medicationIds=$medicationIds');
       } else {
         print('DEBUG: NavigatorState não disponível, adiando navegação');
-        // A navegação inicial é tratada no main.dart
+        // A navegação inicial será tratada no main.dart via getInitialRouteData
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('DEBUG: ERRO ao processar notificação: $e');
+      print('DEBUG: StackTrace: $stackTrace');
     }
   }
 
-Future<void> showNotification({
+
+
+  Future<void> showNotification({
     required int id,
     required String title,
     required String body, // 'body' é o conteúdo da notificação, não o payload para a Activity.
@@ -277,8 +319,7 @@ Future<void> showNotification({
     }
   }
 
-  // Certifique-se de que estas funções auxiliares existam na sua classe NotificationService,
-  // elas são usadas acima para extrair dados do payload.
+
   String extractHorarioFromPayload(String payload) {
     final parts = payload.split('|');
     return parts.isNotEmpty ? parts[0] : '08:00';
@@ -288,6 +329,8 @@ Future<void> showNotification({
     final parts = payload.split('|');
     return parts.length > 1 ? parts[1].split(',').where((id) => id.isNotEmpty).toList() : [];
   }
+
+
 
   Future<void> scheduleNotification({
     required int id,
@@ -310,9 +353,60 @@ Future<void> showNotification({
     }
 
     try {
+      // Verificar se o fuso horário está inicializado
+      if (tz.local.name.isEmpty) {
+        print('DEBUG: Fuso horário não inicializado, inicializando agora');
+        tz.initializeTimeZones();
+        tz.setLocalLocation(tz.getLocation('America/Sao_Paulo')); // Ajuste para seu fuso horário
+      }
+
+      // Gerar um ID único para o alarme
+      final uniqueAlarmId = (id.hashCode ^ payload.hashCode).abs();
+      print('DEBUG: Usando uniqueAlarmId: $uniqueAlarmId');
+
+      // Agendar a chamada à FullScreenAlarmActivity usando AndroidAlarmManager
+      final alarmScheduled = await AndroidAlarmManager.oneShot(
+        Duration(milliseconds: delay),
+        uniqueAlarmId,
+        alarmCallback,
+        exact: true,
+        allowWhileIdle: true,
+        wakeup: true,
+        params: {
+          'id': id,
+          'title': title,
+          'body': body ?? 'Toque para ver os medicamentos',
+          'payload': payload,
+          'sound': sound,
+        },
+      );
+      print('DEBUG: Alarme agendado com AndroidAlarmManager para $scheduledTime, sucesso: $alarmScheduled');
+      if (!alarmScheduled) {
+        print('DEBUG: ERRO: Falha ao agendar alarme com AndroidAlarmManager');
+        // Fallback: Chamar FullScreenAlarmActivity diretamente via MethodChannel
+        final payloadParts = payload.split('|');
+        if (payloadParts.length >= 2) {
+          final horario = payloadParts[0];
+          final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
+          print('DEBUG: Tentando fallback via MethodChannel para FullScreenAlarmActivity');
+          final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
+            'horario': horario,
+            'medicationIds': medicationIds,
+            'payload': payload,
+            'title': title,
+            'body': body ?? 'Toque para ver os medicamentos',
+          });
+          if (result == true) {
+            print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel');
+            return; // Não agendar notificação nativa
+          }
+        }
+      }
+
+      // Agendar notificação nativa como fallback
       final tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
       final List<AndroidNotificationAction> actions = [
-        AndroidNotificationAction(
+        const AndroidNotificationAction(
           'view_action',
           'Ver',
           showsUserInterface: true,
@@ -361,53 +455,50 @@ Future<void> showNotification({
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
       );
-      print('DEBUG: Notificação agendada com sucesso para $tzScheduledTime');
-    } catch (e) {
+      print('DEBUG: Notificação nativa agendada com sucesso para $tzScheduledTime');
+    } catch (e, stackTrace) {
       print('DEBUG: Erro ao agendar notificação: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+      rethrow;
     }
   }
 
-  static Future<void> alarmCallback(int id, Map<String, dynamic> params) async {
+
+
+  @pragma('vm:entry-point')
+  Future<void> alarmCallback(int id, Map<String, dynamic> params) async {
     print('DEBUG: Iniciando alarmCallback para ID $id com params: $params');
     try {
-      if (_notificationService._database == null) {
-        print('DEBUG: Banco de dados não inicializado no alarmCallback');
+      final payload = params['payload'] as String?;
+      if (payload == null || payload.isEmpty) {
+        print('DEBUG: ERRO: Payload nulo ou vazio no alarmCallback');
         return;
       }
-      final payload = params['payload'] as String;
       print('DEBUG: Processando payload: $payload');
       final payloadParts = payload.split('|');
       if (payloadParts.length >= 2) {
         final horario = payloadParts[0];
-        final medicationIds = payloadParts[1].split(',');
+        final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
         print('DEBUG: Horario: $horario, Medication IDs: $medicationIds');
 
-        final navigatorState = NotificationService.navigatorKey.currentState;
-        print('DEBUG: NavigatorState disponível: ${navigatorState != null && navigatorState.mounted}');
-        if (navigatorState != null && navigatorState.mounted) {
-          navigatorState.pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => MedicationAlertScreen(
-                horario: horario,
-                medicationIds: medicationIds,
-                database: _notificationService._database!,
-                notificationService: _notificationService,
-              ),
-            ),
-          );
-          print('DEBUG: Navegação para MedicationAlertScreen via alarme concluída');
-        } else {
-          print('DEBUG: NavigatorState não disponível, adiando navegação');
-          // A navegação inicial é tratada no main.dart
-        }
+        final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
+          'horario': horario,
+          'medicationIds': medicationIds,
+          'payload': payload,
+          'title': params['title'] as String? ?? 'Hora do Medicamento',
+          'body': params['body'] as String? ?? 'Toque para ver os medicamentos',
+        });
+        print('DEBUG: FullScreenAlarmActivity chamada com sucesso via alarmCallback, resultado: $result');
       } else {
         print('DEBUG: ERRO: Payload inválido no alarme: $payload');
       }
     } catch (e, stackTrace) {
-      print('DEBUG: Erro ao processar alarme: $e');
+      print('DEBUG: Erro ao chamar FullScreenAlarmActivity via alarmCallback: $e');
       print('DEBUG: StackTrace: $stackTrace');
     }
   }
+
+
 
   Future<void> stopNotificationSound(int id) async {
     print('DEBUG: Parando som da notificação com id: $id');
@@ -419,6 +510,8 @@ Future<void> showNotification({
     }
   }
 
+
+
   Future<void> cancelAllNotifications() async {
     print('DEBUG: Cancelando todas as notificações pendentes');
     try {
@@ -428,6 +521,8 @@ Future<void> showNotification({
       print('DEBUG: Erro ao cancelar notificações: $e');
     }
   }
+
+
 
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
     return await _notificationsPlugin.pendingNotificationRequests();
