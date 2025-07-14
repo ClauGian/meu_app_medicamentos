@@ -22,8 +22,7 @@ class NotificationService {
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   static const _fullscreenChannel = MethodChannel('com.claudinei.medialerta/fullscreen');
-  // Certifique-se que o NAVIGATION_CHANNEL está com o nome correto
-  static const _navigationChannel = MethodChannel('com.claudinei.medialerta/navigation'); // <--- Certifique-se que esta constante está definida
+  static const _navigationChannel = MethodChannel('com.claudinei.medialerta/navigation');
 
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   Database? _database;
@@ -34,13 +33,10 @@ class NotificationService {
 
   NotificationService._internal();
 
-  
   Future<Map<String, dynamic>?> getInitialRouteData() async {
     try {
-      // Usa o _navigationChannel (corrigido do seu MainActivity.kt)
       final Map<dynamic, dynamic>? result = await _navigationChannel.invokeMethod('getInitialRoute');
       if (result != null) {
-        // Converte o resultado para um Map<String, dynamic>
         return Map<String, dynamic>.from(result);
       }
       return null;
@@ -49,7 +45,6 @@ class NotificationService {
       return null;
     }
   }
-  
 
   Future<void> init(Database database) async {
     final int startTime = DateTime.now().millisecondsSinceEpoch;
@@ -59,7 +54,7 @@ class NotificationService {
 
     try {
       tz.initializeTimeZones();
-      tz.setLocalLocation(tz.getLocation('America/Sao_Paulo')); // Ajuste para seu fuso horário
+      tz.setLocalLocation(tz.getLocation('America/Sao_Paulo'));
       print('DEBUG: Timezone inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
       final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
@@ -126,7 +121,6 @@ class NotificationService {
       );
       print('DEBUG: Plugin de notificações inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
-      // Inicializar AndroidAlarmManager
       final bool alarmManagerInitialized = await AndroidAlarmManager.initialize();
       print('DEBUG: AndroidAlarmManager inicializado: $alarmManagerInitialized - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
       if (!alarmManagerInitialized) {
@@ -134,7 +128,6 @@ class NotificationService {
         throw Exception('Falha ao inicializar AndroidAlarmManager');
       }
 
-      // Teste do AndroidAlarmManager
       await AndroidAlarmManager.oneShot(
         const Duration(seconds: 2),
         999999,
@@ -152,15 +145,10 @@ class NotificationService {
     print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
   }
 
-
-
   @pragma('vm:entry-point')
   static Future<void> testAlarmCallback(int id, Map<String, dynamic> params) async {
     print('DEBUG: Teste de AndroidAlarmManager disparado para ID $id com params: $params');
   }
-
-
-
 
   Future<NotificationResponse?> getInitialNotification() async {
     print('DEBUG: Verificando notificação inicial');
@@ -178,8 +166,6 @@ class NotificationService {
     }
   }
 
-
-
   Future<void> cancelNotification(int id) async {
     print('DEBUG: Cancelando notificação com id: $id');
     try {
@@ -189,8 +175,6 @@ class NotificationService {
       print('DEBUG: Erro ao cancelar notificação: $e');
     }
   }
-
-
 
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
     print('DEBUG: Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
@@ -238,20 +222,25 @@ class NotificationService {
 
       final navigatorState = NotificationService.navigatorKey.currentState;
       if (navigatorState != null && navigatorState.mounted) {
+        final rootIsolateToken = RootIsolateToken.instance;
+        if (rootIsolateToken == null) {
+          print('DEBUG: ERRO: RootIsolateToken.instance retornou null em notification_service.dart');
+          throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
+        }
         navigatorState.pushReplacement(
           MaterialPageRoute(
             builder: (context) => MedicationAlertScreen(
               horario: horario,
-              medicationIds: medicationIds, // Mantido como List<String>
+              medicationIds: medicationIds,
               database: _notificationService._database!,
               notificationService: _notificationService,
+              rootIsolateToken: rootIsolateToken,
             ),
           ),
         );
         print('DEBUG: Navegação para MedicationAlertScreen concluída com horario=$horario, medicationIds=$medicationIds');
       } else {
         print('DEBUG: NavigatorState não disponível, adiando navegação');
-        // A navegação inicial será tratada no main.dart via getInitialRouteData
       }
     } catch (e, stackTrace) {
       print('DEBUG: ERRO ao processar notificação: $e');
@@ -259,36 +248,27 @@ class NotificationService {
     }
   }
 
-
-
   Future<void> showNotification({
     required int id,
     required String title,
-    required String body, // 'body' é o conteúdo da notificação, não o payload para a Activity.
+    required String body,
     required String sound,
-    required String payload, // 'payload' é a string que contém 'horario|medicationIds'.
+    required String payload,
   }) async {
-    print('DEBUG: Iniciando showNotification com id: $id, title: $title, sound: $sound, payload: $payload');
-    // REMOVIDO: A verificação de navigatorKey.currentContext para decidir se chama a Activity nativa
-    // A chamada à Activity nativa agora é feita de forma mais robusta, independentemente do context.
-
-    // Tentar chamar FullScreenAlarmActivity via MethodChannel
+    print('DEBUG: Iniciando showNotification with id: $id, title: $title, sound: $sound, payload: $payload');
     try {
       print('DEBUG: Tentando chamar FullScreenAlarmActivity via MethodChannel (usando _fullscreenChannel)');
-      // NOVO: Usar o MethodChannel estático definido no Trecho 1
       await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
-        // CORREÇÃO: Passar os dados que a Activity nativa espera
         'horario': extractHorarioFromPayload(payload),
         'medicationIds': extractMedicationIdsFromPayload(payload),
-        'payload': payload, // É bom passar o payload completo também para o lado nativo
-        'title': title, // Título da notificação pode ser útil na Activity
-        'body': body,   // Corpo da notificação também pode ser útil
+        'payload': payload,
+        'title': title,
+        'body': body,
       });
       print('DEBUG: FullScreenAlarmActivity chamada com sucesso via MethodChannel.');
     } catch (e, stackTrace) {
       print('DEBUG: Erro ao chamar FullScreenAlarmActivity via MethodChannel: $e');
       print('DEBUG: StackTrace: $stackTrace');
-      // Se houver erro ao chamar a Activity de tela cheia, ainda exibe a notificação padrão
       await _notificationsPlugin.show(
         id,
         title,
@@ -319,7 +299,6 @@ class NotificationService {
     }
   }
 
-
   String extractHorarioFromPayload(String payload) {
     final parts = payload.split('|');
     return parts.isNotEmpty ? parts[0] : '08:00';
@@ -329,8 +308,6 @@ class NotificationService {
     final parts = payload.split('|');
     return parts.length > 1 ? parts[1].split(',').where((id) => id.isNotEmpty).toList() : [];
   }
-
-
 
   Future<void> scheduleNotification({
     required int id,
@@ -353,57 +330,83 @@ class NotificationService {
     }
 
     try {
-      // Verificar se o fuso horário está inicializado
       if (tz.local.name.isEmpty) {
         print('DEBUG: Fuso horário não inicializado, inicializando agora');
         tz.initializeTimeZones();
-        tz.setLocalLocation(tz.getLocation('America/Sao_Paulo')); // Ajuste para seu fuso horário
+        tz.setLocalLocation(tz.getLocation('America/Sao_Paulo'));
       }
 
-      // Gerar um ID único para o alarme
       final uniqueAlarmId = (id.hashCode ^ payload.hashCode).abs();
       print('DEBUG: Usando uniqueAlarmId: $uniqueAlarmId');
 
-      // Agendar a chamada à FullScreenAlarmActivity usando AndroidAlarmManager
-      final alarmScheduled = await AndroidAlarmManager.oneShot(
-        Duration(milliseconds: delay),
-        uniqueAlarmId,
-        alarmCallback,
-        exact: true,
-        allowWhileIdle: true,
-        wakeup: true,
-        params: {
-          'id': id,
-          'title': title,
-          'body': body ?? 'Toque para ver os medicamentos',
-          'payload': payload,
-          'sound': sound,
-        },
-      );
-      print('DEBUG: Alarme agendado com AndroidAlarmManager para $scheduledTime, sucesso: $alarmScheduled');
-      if (!alarmScheduled) {
-        print('DEBUG: ERRO: Falha ao agendar alarme com AndroidAlarmManager');
-        // Fallback: Chamar FullScreenAlarmActivity diretamente via MethodChannel
+      try {
+        final alarmScheduled = await AndroidAlarmManager.oneShot(
+          Duration(milliseconds: delay),
+          uniqueAlarmId,
+          alarmCallback,
+          exact: true,
+          allowWhileIdle: true,
+          wakeup: true,
+          params: {
+            'id': id,
+            'title': title,
+            'body': body ?? 'Toque para ver os medicamentos',
+            'payload': payload,
+            'sound': sound,
+          },
+        );
+        print('DEBUG: Alarme agendado com AndroidAlarmManager para $scheduledTime, sucesso: $alarmScheduled');
+        if (!alarmScheduled) {
+          print('DEBUG: ERRO: Falha ao agendar alarme com AndroidAlarmManager');
+          await Future.delayed(Duration(milliseconds: delay));
+          final payloadParts = payload.split('|');
+          if (payloadParts.length >= 2) {
+            final horario = payloadParts[0];
+            final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
+            print('DEBUG: Tentando fallback via MethodChannel para FullScreenAlarmActivity com atraso');
+            final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
+              'horario': horario,
+              'medicationIds': medicationIds,
+              'payload': payload,
+              'title': title,
+              'body': body ?? 'Toque para ver os medicamentos',
+            });
+            if (result == true) {
+              print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel após atraso');
+              return;
+            }
+          }
+        }
+      } catch (e, stackTrace) {
+        print('DEBUG: Exceção capturada ao agendar alarme com AndroidAlarmManager: $e');
+        print('DEBUG: StackTrace: $stackTrace');
         final payloadParts = payload.split('|');
         if (payloadParts.length >= 2) {
           final horario = payloadParts[0];
           final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
-          print('DEBUG: Tentando fallback via MethodChannel para FullScreenAlarmActivity');
-          final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
-            'horario': horario,
-            'medicationIds': medicationIds,
-            'payload': payload,
-            'title': title,
-            'body': body ?? 'Toque para ver os medicamentos',
-          });
-          if (result == true) {
-            print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel');
-            return; // Não agendar notificação nativa
+          print('DEBUG: Tentando fallback via MethodChannel para FullScreenAlarmActivity após $delay ms');
+          await Future.delayed(Duration(milliseconds: delay)); // Garantir o atraso correto
+          try {
+            final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
+              'horario': horario,
+              'medicationIds': medicationIds,
+              'payload': payload,
+              'title': title,
+              'body': body ?? 'Toque para ver os medicamentos',
+            });
+            if (result == true) {
+              print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel após $delay ms');
+              return;
+            } else {
+              print('DEBUG: Falha no MethodChannel, resultado: $result');
+            }
+          } catch (fallbackError, fallbackStackTrace) {
+            print('DEBUG: Erro no fallback do MethodChannel: $fallbackError');
+            print('DEBUG: StackTrace: $fallbackStackTrace');
           }
         }
       }
 
-      // Agendar notificação nativa como fallback
       final tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
       final List<AndroidNotificationAction> actions = [
         const AndroidNotificationAction(
@@ -463,8 +466,6 @@ class NotificationService {
     }
   }
 
-
-
   @pragma('vm:entry-point')
   Future<void> alarmCallback(int id, Map<String, dynamic> params) async {
     print('DEBUG: Iniciando alarmCallback para ID $id com params: $params');
@@ -498,8 +499,6 @@ class NotificationService {
     }
   }
 
-
-
   Future<void> stopNotificationSound(int id) async {
     print('DEBUG: Parando som da notificação com id: $id');
     try {
@@ -510,8 +509,6 @@ class NotificationService {
     }
   }
 
-
-
   Future<void> cancelAllNotifications() async {
     print('DEBUG: Cancelando todas as notificações pendentes');
     try {
@@ -521,8 +518,6 @@ class NotificationService {
       print('DEBUG: Erro ao cancelar notificações: $e');
     }
   }
-
-
 
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
     return await _notificationsPlugin.pendingNotificationRequests();

@@ -1,15 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'dart:io';
 import '../notification_service.dart';
 import 'dart:async';
+import 'package:flutter/services.dart';
 
+// Movido para o nível superior
+class FetchMedicationsParams {
+  final List<String> medicationIds;
+  final String horario;
+  final Database database;
+  final RootIsolateToken rootIsolateToken; // Adicionado
+
+  FetchMedicationsParams(this.medicationIds, this.horario, this.database, this.rootIsolateToken);
+}
 
 class MedicationAlertScreen extends StatefulWidget {
   final String horario;
   final List<String> medicationIds;
   final Database database;
   final NotificationService notificationService;
+  final RootIsolateToken rootIsolateToken; // Adicionado
 
   MedicationAlertScreen({
     super.key,
@@ -17,6 +29,7 @@ class MedicationAlertScreen extends StatefulWidget {
     required this.medicationIds,
     required this.database,
     required this.notificationService,
+    required this.rootIsolateToken, // Adicionado
   }) {
     print('DEBUG: Construindo MedicationAlertScreen com horario=$horario, medicationIds=$medicationIds');
     if (medicationIds.isEmpty) {
@@ -43,31 +56,34 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     _fetchMedications();
   }
 
-
-
-  Future<void> _fetchMedications() async {
+  // Função estática para executar no Isolate
+  static Future<List<Map<String, dynamic>>> _fetchMedicationsInIsolate(FetchMedicationsParams params) async {
     final startTime = DateTime.now();
-    try {
-      print('DEBUG: medicationIds recebidos: ${widget.medicationIds}');
-      print('DEBUG: Tipo de medicationIds: ${widget.medicationIds.runtimeType}');
+    try { 
+      // Inicializar BackgroundIsolateBinaryMessenger para sqflite no Isolate
+      BackgroundIsolateBinaryMessenger.ensureInitialized(params.rootIsolateToken);
+      print('DEBUG: BackgroundIsolateBinaryMessenger inicializado no Isolate');
+
+      print('DEBUG: medicationIds recebidos no Isolate: ${params.medicationIds}');
+      print('DEBUG: Tipo de medicationIds no Isolate: ${params.medicationIds.runtimeType}');
 
       List<Map<String, dynamic>> result;
-      if (widget.medicationIds.isEmpty) {
-        print('DEBUG: Lista de medicationIds vazia, verificando medicamentos para o horário ${widget.horario}');
-        result = await widget.database.query(
+      if (params.medicationIds.isEmpty) {
+        print('DEBUG: Lista de medicationIds vazia, verificando medicamentos para o horário ${params.horario}');
+        result = await params.database.query(
           'medications',
           where: 'horarios LIKE ?',
-          whereArgs: ['%${widget.horario}%'],
+          whereArgs: ['%${params.horario}%'],
         );
-        print('DEBUG: Medicamentos encontrados para horário ${widget.horario}: $result');
+        print('DEBUG: Medicamentos encontrados para horário ${params.horario}: $result');
       } else {
-        final List<int> intMedicationIds = widget.medicationIds.map((id) {
-          print('DEBUG: Convertendo ID: $id');
+        final List<int> intMedicationIds = params.medicationIds.map((id) {
+          print('DEBUG: Convertendo ID no Isolate: $id');
           return int.parse(id);
         }).toList();
-        print('DEBUG: IDs convertidos para inteiros: $intMedicationIds');
+        print('DEBUG: IDs convertidos para inteiros no Isolate: $intMedicationIds');
 
-        result = await widget.database.query(
+        result = await params.database.query(
           'medications',
           columns: ['id', 'nome', 'quantidade', 'dosagem_diaria', 'horarios', 'foto_embalagem', 'cuidador_id', 'skip_count'],
           where: 'id IN (${intMedicationIds.map((_) => '?').join(',')})',
@@ -75,8 +91,26 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
         );
       }
 
-      print('DEBUG: Medicamentos buscados: $result');
-      print('DEBUG: Tempo de _fetchMedications: ${DateTime.now().difference(startTime).inMilliseconds}ms');
+      print('DEBUG: Medicamentos buscados no Isolate: $result');
+      print('DEBUG: Tempo de _fetchMedicationsInIsolate: ${DateTime.now().difference(startTime).inMilliseconds}ms');
+      return result;
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro ao buscar medicamentos no Isolate: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+      print('DEBUG: Tempo de _fetchMedicationsInIsolate (com erro): ${DateTime.now().difference(startTime).inMilliseconds}ms');
+      return [];
+    }
+  }
+
+  Future<void> _fetchMedications() async {
+    final startTime = DateTime.now();
+    try {
+      final rootIsolateToken = RootIsolateToken.instance;
+      if (rootIsolateToken == null) {
+        throw Exception('RootIsolateToken.instance() retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
+      }
+      final params = FetchMedicationsParams(widget.medicationIds, widget.horario, widget.database, widget.rootIsolateToken);
+      final result = await compute(_fetchMedicationsInIsolate, params);
 
       setState(() {
         medications = result;
@@ -84,15 +118,16 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
         isSkipped = List<bool>.filled(result.length, false);
         isLoading = false;
       });
+      print('DEBUG: _fetchMedications concluído, tempo total: ${DateTime.now().difference(startTime).inMilliseconds}ms');
     } catch (e, stackTrace) {
-      print('DEBUG: Erro ao buscar medicamentos: $e');
+      print('DEBUG: Erro ao executar _fetchMedications no Isolate: $e');
       print('DEBUG: StackTrace: $stackTrace');
-      print('DEBUG: Tempo de _fetchMedications (com erro): ${DateTime.now().difference(startTime).inMilliseconds}ms');
       setState(() {
         isLoading = false;
       });
     }
   }
+
 
 
   void _checkAndCloseIfDone() {

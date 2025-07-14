@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import '../notification_service.dart';
 import 'medication_alert_screen.dart';
+import 'dart:ui';
 
 class DailyAlertsScreen extends StatefulWidget {
   final Database database;
@@ -140,6 +141,11 @@ class DailyAlertsScreenState extends State<DailyAlertsScreen> {
 
                         return GestureDetector(
                           onTap: () {
+                            final rootIsolateToken = RootIsolateToken.instance;
+                            if (rootIsolateToken == null) {
+                              print('DEBUG: ERRO: RootIsolateToken.instance retornou null em daily_alerts_screen.dart');
+                              throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
+                            }
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -148,6 +154,7 @@ class DailyAlertsScreenState extends State<DailyAlertsScreen> {
                                   medicationIds: [id],
                                   database: widget.database,
                                   notificationService: widget.notificationService,
+                                  rootIsolateToken: rootIsolateToken,
                                 ),
                               ),
                             );
