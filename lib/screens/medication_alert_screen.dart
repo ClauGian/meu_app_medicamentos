@@ -56,11 +56,10 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     _fetchMedications();
   }
 
-  // Função estática para executar no Isolate
+
   static Future<List<Map<String, dynamic>>> _fetchMedicationsInIsolate(FetchMedicationsParams params) async {
     final startTime = DateTime.now();
-    try { 
-      // Inicializar BackgroundIsolateBinaryMessenger para sqflite no Isolate
+    try {
       BackgroundIsolateBinaryMessenger.ensureInitialized(params.rootIsolateToken);
       print('DEBUG: BackgroundIsolateBinaryMessenger inicializado no Isolate');
 
@@ -77,11 +76,24 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
         );
         print('DEBUG: Medicamentos encontrados para horário ${params.horario}: $result');
       } else {
-        final List<int> intMedicationIds = params.medicationIds.map((id) {
+        final List<int> intMedicationIds = params.medicationIds.where((id) {
+          try {
+            int.parse(id);
+            return true;
+          } catch (e) {
+            print('DEBUG: ID inválido ignorado: $id');
+            return false;
+          }
+        }).map((id) {
           print('DEBUG: Convertendo ID no Isolate: $id');
           return int.parse(id);
         }).toList();
         print('DEBUG: IDs convertidos para inteiros no Isolate: $intMedicationIds');
+
+        if (intMedicationIds.isEmpty) {
+          print('DEBUG: Nenhum ID de medicamento válido, retornando lista vazia');
+          return [];
+        }
 
         result = await params.database.query(
           'medications',
@@ -101,6 +113,8 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       return [];
     }
   }
+
+
 
   Future<void> _fetchMedications() async {
     final startTime = DateTime.now();

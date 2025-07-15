@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:isolate';
 import 'dart:ui';
 
@@ -46,16 +47,29 @@ class NotificationService {
     }
   }
 
+
+
   Future<void> init(Database database) async {
     final int startTime = DateTime.now().millisecondsSinceEpoch;
     print('DEBUG: Iniciando NotificationService.init - Elapsed: 0ms');
-
     _database = database;
 
     try {
+      // Inicializar o timezone na thread principal
       tz.initializeTimeZones();
       tz.setLocalLocation(tz.getLocation('America/Sao_Paulo'));
-      print('DEBUG: Timezone inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+      print('DEBUG: Timezone inicializado na thread principal - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+      // Obter o RootIsolateToken para o Isolate
+      final rootIsolateToken = RootIsolateToken.instance;
+      if (rootIsolateToken == null) {
+        print('DEBUG: RootIsolateToken não disponível');
+        throw Exception('RootIsolateToken não disponível');
+      }
+
+      // Mover apenas a criação de canais para o Isolate
+      await compute(_initializeHeavyTasks, rootIsolateToken);
+      print('DEBUG: Canais de notificação inicializados no Isolate - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
       final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin == null) {
@@ -66,49 +80,20 @@ class NotificationService {
       bool? notificationsGranted = await androidPlugin.requestNotificationsPermission();
       print('DEBUG: Permissão de notificações concedida: $notificationsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
       if (notificationsGranted == null || !notificationsGranted) {
-        print('DEBUG: Permissão de notificações não concedida');
         throw Exception('Permissão de notificações não concedida');
       }
 
       bool? exactAlarmsGranted = await androidPlugin.requestExactAlarmsPermission();
       print('DEBUG: Permissão de alarme exato concedida: $exactAlarmsGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
       if (exactAlarmsGranted == null || !exactAlarmsGranted) {
-        print('DEBUG: Permissão de alarme exato não concedida');
         throw Exception('Permissão de alarme exato não concedida');
       }
 
       bool? fullScreenIntentGranted = await androidPlugin.requestFullScreenIntentPermission();
       print('DEBUG: Permissão de tela cheia concedida (inicial): $fullScreenIntentGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
       if (fullScreenIntentGranted == null || !fullScreenIntentGranted) {
-        print('DEBUG: Permissão de tela cheia não concedida');
         throw Exception('Permissão de tela cheia não concedida');
       }
-
-      await androidPlugin.createNotificationChannelGroup(
-        const AndroidNotificationChannelGroup(
-          'medication_group',
-          'Medicamentos',
-          description: 'Grupo de notificações para lembretes de medicamentos',
-        ),
-      );
-      print('DEBUG: Grupo de canais de notificação criado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-      await androidPlugin.createNotificationChannel(
-        const AndroidNotificationChannel(
-          'medication_channel',
-          'Lembrete de Medicamento',
-          description: 'Notificações para lembretes de medicamentos',
-          importance: Importance.max,
-          playSound: true,
-          sound: RawResourceAndroidNotificationSound('alarm'),
-          enableVibration: true,
-          enableLights: true,
-          ledColor: Colors.blue,
-          showBadge: false,
-          groupId: 'medication_group',
-        ),
-      );
-      print('DEBUG: Canal de notificação configurado com som: alarm.mp3 - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
       const initializationSettings = InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -124,7 +109,6 @@ class NotificationService {
       final bool alarmManagerInitialized = await AndroidAlarmManager.initialize();
       print('DEBUG: AndroidAlarmManager inicializado: $alarmManagerInitialized - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
       if (!alarmManagerInitialized) {
-        print('DEBUG: Falha ao inicializar AndroidAlarmManager');
         throw Exception('Falha ao inicializar AndroidAlarmManager');
       }
 
@@ -145,10 +129,45 @@ class NotificationService {
     print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
   }
 
+  static Future<void> _initializeHeavyTasks(RootIsolateToken token) async {
+    // Inicializar o BackgroundIsolateBinaryMessenger com o RootIsolateToken
+    BackgroundIsolateBinaryMessenger.ensureInitialized(token);
+
+    final androidPlugin = FlutterLocalNotificationsPlugin().resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      await androidPlugin.createNotificationChannelGroup(
+        const AndroidNotificationChannelGroup(
+          'medication_group',
+          'Medicamentos',
+          description: 'Grupo de notificações para lembretes de medicamentos',
+        ),
+      );
+      await androidPlugin.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'medication_channel',
+          'Lembrete de Medicamento',
+          description: 'Notificações para lembretes de medicamentos',
+          importance: Importance.max,
+          playSound: true,
+          sound: RawResourceAndroidNotificationSound('alarm'),
+          enableVibration: true,
+          enableLights: true,
+          ledColor: Colors.blue,
+          showBadge: false,
+          groupId: 'medication_group',
+        ),
+      );
+    }
+  }
+
+
+
   @pragma('vm:entry-point')
   static Future<void> testAlarmCallback(int id, Map<String, dynamic> params) async {
     print('DEBUG: Teste de AndroidAlarmManager disparado para ID $id com params: $params');
   }
+
+
 
   Future<NotificationResponse?> getInitialNotification() async {
     print('DEBUG: Verificando notificação inicial');
@@ -166,6 +185,8 @@ class NotificationService {
     }
   }
 
+
+
   Future<void> cancelNotification(int id) async {
     print('DEBUG: Cancelando notificação com id: $id');
     try {
@@ -175,6 +196,8 @@ class NotificationService {
       print('DEBUG: Erro ao cancelar notificação: $e');
     }
   }
+
+
 
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
     print('DEBUG: Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
@@ -248,6 +271,8 @@ class NotificationService {
     }
   }
 
+
+
   Future<void> showNotification({
     required int id,
     required String title,
@@ -299,6 +324,8 @@ class NotificationService {
     }
   }
 
+
+
   String extractHorarioFromPayload(String payload) {
     final parts = payload.split('|');
     return parts.isNotEmpty ? parts[0] : '08:00';
@@ -308,6 +335,8 @@ class NotificationService {
     final parts = payload.split('|');
     return parts.length > 1 ? parts[1].split(',').where((id) => id.isNotEmpty).toList() : [];
   }
+
+
 
   Future<void> scheduleNotification({
     required int id,
@@ -330,12 +359,6 @@ class NotificationService {
     }
 
     try {
-      if (tz.local.name.isEmpty) {
-        print('DEBUG: Fuso horário não inicializado, inicializando agora');
-        tz.initializeTimeZones();
-        tz.setLocalLocation(tz.getLocation('America/Sao_Paulo'));
-      }
-
       final uniqueAlarmId = (id.hashCode ^ payload.hashCode).abs();
       print('DEBUG: Usando uniqueAlarmId: $uniqueAlarmId');
 
@@ -357,13 +380,47 @@ class NotificationService {
         );
         print('DEBUG: Alarme agendado com AndroidAlarmManager para $scheduledTime, sucesso: $alarmScheduled');
         if (!alarmScheduled) {
-          print('DEBUG: ERRO: Falha ao agendar alarme com AndroidAlarmManager');
+          print('DEBUG: ERRO: Falha ao agendar alarme com AndroidAlarmManager - Verificando permissões');
+          final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+          bool? exactAlarmsGranted = await androidPlugin?.requestExactAlarmsPermission();
+          print('DEBUG: Permissão de alarme exato após falha: $exactAlarmsGranted');
+          if (exactAlarmsGranted == true) {
+            try {
+              final retryScheduled = await AndroidAlarmManager.oneShot(
+                Duration(milliseconds: delay),
+                uniqueAlarmId,
+                alarmCallback,
+                exact: true,
+                allowWhileIdle: true,
+                wakeup: true,
+                params: {
+                  'id': id,
+                  'title': title,
+                  'body': body ?? 'Toque para ver os medicamentos',
+                  'payload': payload,
+                  'sound': sound,
+                },
+              );
+              print('DEBUG: Tentativa de reagendamento com AndroidAlarmManager, sucesso: $retryScheduled');
+              if (!retryScheduled) {
+                print('DEBUG: ERRO: Reagendamento falhou, usando fallback via MethodChannel');
+              } else {
+                return; // Sucesso no reagendamento, sair sem usar fallback
+              }
+            } catch (retryError, retryStackTrace) {
+              print('DEBUG: Exceção ao tentar reagendar com AndroidAlarmManager: $retryError');
+              print('DEBUG: StackTrace: $retryStackTrace');
+            }
+          } else {
+            print('DEBUG: Permissão de alarme exato não concedida, usando fallback via MethodChannel');
+          }
+          // Prosseguir com o fallback
+          print('DEBUG: Tentando fallback via MethodChannel para FullScreenAlarmActivity após $delay ms');
           await Future.delayed(Duration(milliseconds: delay));
           final payloadParts = payload.split('|');
           if (payloadParts.length >= 2) {
             final horario = payloadParts[0];
             final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
-            print('DEBUG: Tentando fallback via MethodChannel para FullScreenAlarmActivity com atraso');
             final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
               'horario': horario,
               'medicationIds': medicationIds,
@@ -372,8 +429,10 @@ class NotificationService {
               'body': body ?? 'Toque para ver os medicamentos',
             });
             if (result == true) {
-              print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel após atraso');
+              print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel após $delay ms');
               return;
+            } else {
+              print('DEBUG: Falha no MethodChannel, resultado: $result');
             }
           }
         }
@@ -385,7 +444,7 @@ class NotificationService {
           final horario = payloadParts[0];
           final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
           print('DEBUG: Tentando fallback via MethodChannel para FullScreenAlarmActivity após $delay ms');
-          await Future.delayed(Duration(milliseconds: delay)); // Garantir o atraso correto
+          await Future.delayed(Duration(milliseconds: delay));
           try {
             final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
               'horario': horario,
@@ -465,6 +524,8 @@ class NotificationService {
       rethrow;
     }
   }
+
+
 
   @pragma('vm:entry-point')
   Future<void> alarmCallback(int id, Map<String, dynamic> params) async {
