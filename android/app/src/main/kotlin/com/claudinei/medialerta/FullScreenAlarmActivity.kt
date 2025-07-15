@@ -8,6 +8,9 @@ import android.widget.Button
 import android.content.Intent
 import android.view.View
 import android.util.Log // Importar Log para logs de depuração
+import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.embedding.engine.FlutterEngineCache
+import io.flutter.plugin.common.MethodChannel
 
 class FullScreenAlarmActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
@@ -41,11 +44,11 @@ class FullScreenAlarmActivity : AppCompatActivity() {
             stopAndReleaseMediaPlayer()
             val intent = Intent(this, MainActivity::class.java).apply {
                 putExtra("route", "medication_alert")
-                putExtra("horario", horario) // Usar o horário extraído acima
-                putStringArrayListExtra("medicationIds", ArrayList(medicationIds)) // Usar os IDs extraídos acima
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra("horario", horario)
+                putStringArrayListExtra("medicationIds", ArrayList(medicationIds))
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             }
-            Log.d("MediAlerta", "Redirecionando para MainActivity com: horario=$horario, medicationIds=$medicationIds")
+            Log.d("MediAlerta", "Redirecionando para MainActivity com: route=medication_alert, horario=$horario, medicationIds=$medicationIds")
             startActivity(intent)
             finish()
         }

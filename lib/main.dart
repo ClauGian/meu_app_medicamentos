@@ -72,24 +72,41 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  final ValueNotifier<Map<String, dynamic>?> routeDataNotifier = ValueNotifier<Map<String, dynamic>?>(null);
+
   @override
   void initState() {
     super.initState();
+    _initializeRouteData();
+  }
+
+  Future<void> _initializeRouteData() async {
+    final initialData = await widget.notificationService.getInitialRouteData();
+    routeDataNotifier.value = initialData;
+
+    const MethodChannel('com.claudinei.medialerta/navigation').setMethodCallHandler((call) async {
+      if (call.method == 'navigateToMedicationAlert') {
+        final args = call.arguments as Map;
+        print('DEBUG: Navegando para MedicationAlertScreen via MethodChannel com args=$args');
+        routeDataNotifier.value = args.cast<String, dynamic>();
+      }
+      return null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    print('DEBUG: Construindo MyApp - FutureBuilder irá obter getInitialRouteData');
+    print('DEBUG: Construindo MyApp - Configurando ValueListenableBuilder');
     return MaterialApp(
       title: 'MediAlerta',
       navigatorKey: NotificationService.navigatorKey,
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: FutureBuilder<Map<String, dynamic>?>(
-        future: widget.notificationService.getInitialRouteData(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      home: ValueListenableBuilder<Map<String, dynamic>?>(
+        valueListenable: routeDataNotifier,
+        builder: (context, routeData, child) {
+          if (routeData == null) {
             return const Scaffold(
               body: Center(
                 child: CircularProgressIndicator(),
@@ -97,20 +114,26 @@ class _MyAppState extends State<MyApp> {
             );
           }
 
-          final initialData = snapshot.data;
-          print('DEBUG: initialData no FutureBuilder: $initialData');
+          print('DEBUG: routeData no ValueListenableBuilder: $routeData');
 
-          if (initialData != null && initialData['route'] == 'medication_alert') {
-            final horario = initialData['horario'] as String? ?? '08:00';
-            final medicationIds = (initialData['medicationIds'] as List<dynamic>?)
+          if (routeData['route'] == 'medication_alert') {
+            final horario = routeData['horario'] as String? ?? '08:00';
+            final medicationIds = (routeData['medicationIds'] as List<dynamic>?)
                     ?.map((e) => e.toString())
                     .toList() ??
                 <String>[];
-            print('DEBUG: Definindo MedicationAlertScreen como tela inicial via FutureBuilder com horario=$horario, medicationIds=$medicationIds');
+            if (medicationIds.isEmpty) {
+              print('DEBUG: AVISO: medicationIds está vazio no ValueListenableBuilder, redirecionando para WelcomeScreen');
+              return WelcomeScreen(
+                database: widget.database,
+                notificationService: widget.notificationService,
+              );
+            }
+            print('DEBUG: Definindo MedicationAlertScreen como tela inicial com horario=$horario, medicationIds=$medicationIds');
             final rootIsolateToken = RootIsolateToken.instance;
             if (rootIsolateToken == null) {
-              print('DEBUG: ERRO: RootIsolateToken.instance() retornou null no FutureBuilder');
-              throw Exception('RootIsolateToken.instance() retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
+              print('DEBUG: ERRO: RootIsolateToken.instance retornou null no ValueListenableBuilder');
+              throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
             }
             return MedicationAlertScreen(
               horario: horario,
@@ -119,13 +142,12 @@ class _MyAppState extends State<MyApp> {
               notificationService: widget.notificationService,
               rootIsolateToken: rootIsolateToken,
             );
-          } else {
-            print('DEBUG: Nenhuma rota especial, definindo WelcomeScreen como tela inicial.');
-            return WelcomeScreen(
-              database: widget.database,
-              notificationService: widget.notificationService,
-            );
           }
+          print('DEBUG: Nenhuma rota especial, definindo WelcomeScreen como tela inicial.');
+          return WelcomeScreen(
+            database: widget.database,
+            notificationService: widget.notificationService,
+          );
         },
       ),
       onGenerateRoute: (settings) {
@@ -138,10 +160,19 @@ class _MyAppState extends State<MyApp> {
                   ?.map((e) => e.toString())
                   .toList() ??
               <String>[];
+          if (medicationIds.isEmpty) {
+            print('DEBUG: AVISO: medicationIds está vazio em onGenerateRoute, redirecionando para WelcomeScreen');
+            return MaterialPageRoute(
+              builder: (context) => WelcomeScreen(
+                database: widget.database,
+                notificationService: widget.notificationService,
+              ),
+            );
+          }
           final rootIsolateToken = RootIsolateToken.instance;
           if (rootIsolateToken == null) {
-            print('DEBUG: ERRO: RootIsolateToken.instance() retornou null em onGenerateRoute');
-            throw Exception('RootIsolateToken.instance() retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
+            print('DEBUG: ERRO: RootIsolateToken.instance retornou null em onGenerateRoute');
+            throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
           }
           print('DEBUG: Construindo MedicationAlertScreen via onGenerateRoute com horario=$horario, medicationIds=$medicationIds, rootIsolateToken=$rootIsolateToken');
           return MaterialPageRoute(
@@ -183,5 +214,11 @@ class _MyAppState extends State<MyApp> {
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    routeDataNotifier.dispose();
+    super.dispose();
   }
 }
