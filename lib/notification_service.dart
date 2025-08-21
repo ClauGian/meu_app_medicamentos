@@ -702,6 +702,4 @@ class NotificationService {
       return false;
     }
   }
-
-
 }

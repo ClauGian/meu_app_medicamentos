@@ -3,8 +3,6 @@ import 'package:sqflite/sqflite.dart';
 import '../notification_service.dart'; // Adicionado
 import 'medication_list_screen.dart';
 import 'medication_registration_screen.dart';
-import 'user_registration_screen.dart';
-import 'caregiver_registration_screen.dart';
 import 'instructions_screen.dart';
 import 'daily_alerts_screen.dart';
 import 'alert_sound_selection_screen.dart';
@@ -122,16 +120,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(12.0),
                 children: [
-                  _buildMenuCard(Icons.person, 'Meu Cadastro', () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => UserRegistrationScreen(database: widget.database),
-                    ));
-                  }),
-                  _buildMenuCard(Icons.group_add, 'Cadastrar Cuidador', () {
-                    Navigator.push(context, MaterialPageRoute(
-                      builder: (context) => CaregiverRegistrationScreen(database: widget.database),
-                    ));
-                  }),
                   _buildMenuCard(Icons.medical_services, 'Cadastrar Medicamentos', () {
                     Navigator.push(context, MaterialPageRoute(
                       builder: (context) => MedicationRegistrationScreen(
