@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Importação necessária para a função compute
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:timezone/data/latest.dart' as tz;
-import 'screens/medication_alert_screen.dart';
-import 'dart:async';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
-
+import 'screens/medication_alert_screen.dart';
+import 'package:just_audio/just_audio.dart';
 
 final _processedNotificationIds = <int>{};
+final AudioPlayer _audioPlayer = AudioPlayer();
 
 @pragma('vm:entry-point')
 void notificationBackgroundHandler(NotificationResponse response) {
@@ -23,10 +23,8 @@ class NotificationService {
 
   static const _navigationChannel = MethodChannel('com.claudinei.medialerta/navigation');
   final MethodChannel _deviceChannel = const MethodChannel('com.claudinei.medialerta/device');
-  final MethodChannel _fullscreenChannel = const MethodChannel('com.claudinei.medialerta/fullscreen');
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   Database? _database;
-
 
   factory NotificationService() {
     return _notificationService;
@@ -46,8 +44,6 @@ class NotificationService {
       return null;
     }
   }
-
-
 
   Future<void> init(Database database) async {
     final int startTime = DateTime.now().millisecondsSinceEpoch;
@@ -71,9 +67,12 @@ class NotificationService {
         throw Exception('RootIsolateToken não disponível');
       }
 
-      // Mover apenas a criação de canais para o Isolate
+      // Mover a criação de canais para o Isolate
       await compute(_initializeHeavyTasks, rootIsolateToken);
       print('DEBUG: Canais de notificação inicializados no Isolate - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+      final activeNotifications = await _notificationsPlugin.getActiveNotifications();
+      print('DEBUG: Notificações ativas: $activeNotifications');
 
       final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
       if (androidPlugin == null) {
@@ -93,12 +92,6 @@ class NotificationService {
         throw Exception('Permissão de alarme exato não concedida');
       }
 
-      bool? fullScreenIntentGranted = await androidPlugin.requestFullScreenIntentPermission();
-      print('DEBUG: Permissão de tela cheia concedida (inicial): $fullScreenIntentGranted - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-      if (fullScreenIntentGranted == null || !fullScreenIntentGranted) {
-        throw Exception('Permissão de tela cheia não concedida');
-      }
-
       const initializationSettings = InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       );
@@ -115,16 +108,6 @@ class NotificationService {
       if (!alarmManagerInitialized) {
         throw Exception('Falha ao inicializar AndroidAlarmManager');
       }
-
-      await AndroidAlarmManager.oneShot(
-        const Duration(seconds: 2),
-        999999,
-        testAlarmCallback,
-        exact: true,
-        allowWhileIdle: true,
-        wakeup: true,
-      );
-      print('DEBUG: Teste de AndroidAlarmManager agendado para ID 999999');
     } catch (e, stackTrace) {
       print('DEBUG: Erro durante inicialização do NotificationService: $e');
       print('DEBUG: StackTrace: $stackTrace');
@@ -152,9 +135,6 @@ class NotificationService {
     }
   }
 
-
-
-
   Future<bool> _isIgnoringBatteryOptimizations() async {
     try {
       final result = await _deviceChannel.invokeMethod('isIgnoringBatteryOptimizations');
@@ -167,13 +147,8 @@ class NotificationService {
   }
 
 
-
-
-
   static Future<void> _initializeHeavyTasks(RootIsolateToken token) async {
-    // Inicializar o BackgroundIsolateBinaryMessenger com o RootIsolateToken
     BackgroundIsolateBinaryMessenger.ensureInitialized(token);
-
     final androidPlugin = FlutterLocalNotificationsPlugin().resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     if (androidPlugin != null) {
       await androidPlugin.createNotificationChannelGroup(
@@ -190,7 +165,7 @@ class NotificationService {
           description: 'Notificações para lembretes de medicamentos',
           importance: Importance.max,
           playSound: true,
-          sound: RawResourceAndroidNotificationSound('alarm'),
+          sound: RawResourceAndroidNotificationSound('alarm'), // TODO: Substituir por som selecionado em AlertSoundSelection
           enableVibration: true,
           enableLights: true,
           ledColor: Colors.blue,
@@ -200,15 +175,6 @@ class NotificationService {
       );
     }
   }
-
-
-
-  @pragma('vm:entry-point')
-  static Future<void> testAlarmCallback(int id, Map<String, dynamic> params) async {
-    print('DEBUG: Teste de AndroidAlarmManager disparado para ID $id com params: $params');
-  }
-
-
 
   Future<NotificationResponse?> getInitialNotification() async {
     print('DEBUG: Verificando notificação inicial');
@@ -225,8 +191,6 @@ class NotificationService {
       return null;
     }
   }
-
-
 
   Future<void> cancelNotification(int id) async {
     print('DEBUG: Cancelando notificação com id: $id');
@@ -255,24 +219,13 @@ class NotificationService {
     _processedNotificationIds.add(response.id!);
 
     try {
-      await _notificationService._notificationsPlugin.cancel(response.id!);
-      print('DEBUG: Notificação nativa ID ${response.id} cancelada');
-    } catch (e, stackTrace) {
-      print('DEBUG: Erro ao cancelar notificação: $e');
-      print('DEBUG: StackTrace: $stackTrace');
-    }
-
-    try {
       final payloadParts = response.payload!.split('|');
       if (payloadParts.length < 2) {
         print('DEBUG: ERRO: Payload inválido: ${response.payload}');
         return;
       }
       final horario = payloadParts[0];
-      final medicationIds = payloadParts[1]
-          .split(',')
-          .where((id) => id.isNotEmpty)
-          .toList();
+      final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
 
       if (medicationIds.isEmpty) {
         print('DEBUG: ERRO: Nenhum ID de medicamento válido encontrado no payload: ${response.payload}');
@@ -284,27 +237,54 @@ class NotificationService {
         return;
       }
 
-      final navigatorState = NotificationService.navigatorKey.currentState;
-      if (navigatorState != null && navigatorState.mounted) {
-        final rootIsolateToken = RootIsolateToken.instance;
-        if (rootIsolateToken == null) {
-          print('DEBUG: ERRO: RootIsolateToken.instance retornou null em notification_service.dart');
-          throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
-        }
-        navigatorState.pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => MedicationAlertScreen(
-              horario: horario,
-              medicationIds: medicationIds,
-              database: _notificationService._database!,
-              notificationService: _notificationService,
-              rootIsolateToken: rootIsolateToken,
-            ),
-          ),
+      // Tocar o som quando a notificação é processada
+      try {
+        await _notificationService._playAlarmSound('alarm');
+        print('DEBUG: Som de alarme iniciado ao processar notificação ID ${response.id}');
+      } catch (e, stackTrace) {
+        print('DEBUG: Erro ao tocar som ao processar notificação: $e');
+        print('DEBUG: StackTrace: $stackTrace');
+      }
+
+      if (response.actionId == 'snooze_action') {
+        // Ação "Adiar 15 minutos"
+        await _notificationService._notificationsPlugin.cancel(response.id!);
+        print('DEBUG: Notificação nativa ID ${response.id} cancelada (snooze_action)');
+        final newScheduledTime = DateTime.now().add(const Duration(minutes: 15));
+        await _notificationService.scheduleNotification(
+          id: response.id! + 1000000,
+          title: 'Hora do Medicamento',
+          body: 'Toque para ver os medicamentos',
+          payload: response.payload!,
+          scheduledTime: newScheduledTime,
+          sound: 'alarm',
         );
-        print('DEBUG: Navegação para MedicationAlertScreen concluída com horario=$horario, medicationIds=$medicationIds');
-      } else {
-        print('DEBUG: NavigatorState não disponível, adiando navegação');
+        print('DEBUG: Notificação reagendada para 15 minutos depois: $newScheduledTime');
+      } else if (response.actionId == 'view_action' || response.actionId == null) {
+        // Ação "Ver" ou toque na notificação
+        print('DEBUG: Processando ação view_action ou toque na notificação ID ${response.id}');
+        final navigatorState = NotificationService.navigatorKey.currentState;
+        if (navigatorState != null && navigatorState.mounted) {
+          final rootIsolateToken = RootIsolateToken.instance;
+          if (rootIsolateToken == null) {
+            print('DEBUG: ERRO: RootIsolateToken.instance retornou null');
+            throw Exception('RootIsolateToken.instance retornou null');
+          }
+          navigatorState.pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => MedicationAlertScreen(
+                horario: horario,
+                medicationIds: medicationIds,
+                database: _notificationService._database!,
+                notificationService: _notificationService,
+                rootIsolateToken: rootIsolateToken,
+              ),
+            ),
+          );
+          print('DEBUG: Navegação para MedicationAlertScreen concluída com horario=$horario, medicationIds=$medicationIds');
+        } else {
+          print('DEBUG: NavigatorState não disponível, adiando navegação');
+        }
       }
     } catch (e, stackTrace) {
       print('DEBUG: ERRO ao processar notificação: $e');
@@ -323,58 +303,59 @@ class NotificationService {
   }) async {
     print('DEBUG: Iniciando showNotification with id: $id, title: $title, sound: $sound, payload: $payload');
     try {
-      print('DEBUG: Tentando chamar FullScreenAlarmActivity via MethodChannel (usando _fullscreenChannel)');
-      await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
-        'horario': extractHorarioFromPayload(payload),
-        'medicationIds': extractMedicationIdsFromPayload(payload),
-        'payload': payload,
-        'title': title,
-        'body': body,
-      });
-      print('DEBUG: FullScreenAlarmActivity chamada com sucesso via MethodChannel.');
-    } catch (e, stackTrace) {
-      print('DEBUG: Erro ao chamar FullScreenAlarmActivity via MethodChannel: $e');
-      print('DEBUG: StackTrace: $stackTrace');
+      const bigTextStyleInformation = BigTextStyleInformation(
+        'Toque para ver os medicamentos',
+        htmlFormatBigText: false,
+        contentTitle: 'Hora do Medicamento',
+        htmlFormatContentTitle: false,
+        summaryText: 'Toque para ver os medicamentos',
+        htmlFormatSummaryText: false,
+      );
+
+      final androidDetails = AndroidNotificationDetails(
+        'medication_channel',
+        'Lembrete de Medicamento',
+        channelDescription: 'Notificações para lembretes de medicamentos',
+        importance: Importance.max,
+        priority: Priority.high,
+        sound: RawResourceAndroidNotificationSound(sound), // TODO: Substituir por som selecionado em AlertSoundSelection
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+        largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+        styleInformation: bigTextStyleInformation,
+        actions: const [
+          AndroidNotificationAction(
+            'view_action',
+            'Ver',
+            showsUserInterface: true,
+            cancelNotification: true,
+          ),
+          AndroidNotificationAction(
+            'snooze_action',
+            'Adiar 15 minutos',
+            cancelNotification: true,
+          ),
+        ],
+        visibility: NotificationVisibility.public,
+        enableVibration: true,
+        enableLights: true,
+        ledColor: Colors.blue,
+        autoCancel: true,
+        category: AndroidNotificationCategory.alarm,
+      );
+
       await _notificationsPlugin.show(
         id,
         title,
         body,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'medication_channel',
-            'Lembrete de Medicamento',
-            channelDescription: 'Notificações para lembretes de medicamentos',
-            importance: Importance.max,
-            priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound(sound),
-            playSound: true,
-            icon: '@mipmap/ic_launcher',
-            largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-            fullScreenIntent: true,
-            visibility: NotificationVisibility.public,
-            enableVibration: true,
-            enableLights: true,
-            ledColor: Colors.blue,
-            autoCancel: true,
-            category: AndroidNotificationCategory.alarm,
-          ),
-        ),
+        NotificationDetails(android: androidDetails),
         payload: payload,
       );
-      print('DEBUG: Notificação padrão exibida como fallback');
+      print('DEBUG: Notificação exibida com sucesso');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro ao exibir notificação: $e');
+      print('DEBUG: StackTrace: $stackTrace');
     }
-  }
-
-
-
-  String extractHorarioFromPayload(String payload) {
-    final parts = payload.split('|');
-    return parts.isNotEmpty ? parts[0] : '08:00';
-  }
-
-  List<String> extractMedicationIdsFromPayload(String payload) {
-    final parts = payload.split('|');
-    return parts.length > 1 ? parts[1].split(',').where((id) => id.isNotEmpty).toList() : [];
   }
 
 
@@ -385,7 +366,7 @@ class NotificationService {
     String? body,
     required String payload,
     required DateTime scheduledTime,
-    String sound = 'alarm',
+    String sound = 'alarm', // TODO: Substituir por som selecionado em AlertSoundSelection
   }) async {
     print('DEBUG: Agendando notificação com id: $id, title: $title, sound: $sound, scheduledTime: $scheduledTime');
 
@@ -400,230 +381,194 @@ class NotificationService {
     }
 
     try {
-      final uniqueAlarmId = (id.hashCode ^ payload.hashCode).abs();
-      print('DEBUG: Usando uniqueAlarmId: $uniqueAlarmId');
+      // Passar o delay para _showNativeNotification
+      await _showNativeNotification(id, title, body, payload, sound, scheduledTime, delay);
+      print('DEBUG: Notificação agendada diretamente com flutter_local_notifications');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro ao agendar notificação: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+    }
+  }
 
-      // Verificar estado do dispositivo antes de agendar
-      print('DEBUG: Estado do dispositivo: isInDozeMode=${await _isInDozeMode()}, isIgnoringBatteryOptimizations=${await _isIgnoringBatteryOptimizations()}');
 
-      try {
-        final alarmScheduled = await AndroidAlarmManager.oneShot(
-          Duration(milliseconds: delay),
-          uniqueAlarmId,
-          alarmCallback,
-          exact: true,
-          allowWhileIdle: true,
-          wakeup: true,
-          params: {
-            'id': id,
-            'title': title,
-            'body': body ?? 'Toque para ver os medicamentos',
-            'payload': payload,
-            'sound': sound,
-          },
+
+  Future<void> _showNativeNotification(int id, String title, String? body, String payload, String sound, DateTime scheduledTime, int delay) async {
+    try {
+      // Forçar recriação do canal de notificação
+      final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        await androidPlugin.createNotificationChannelGroup(
+          const AndroidNotificationChannelGroup(
+            'medication_group',
+            'Medicamentos',
+            description: 'Grupo de notificações para lembretes de medicamentos',
+          ),
         );
-        print('DEBUG: Alarme agendado com AndroidAlarmManager para $scheduledTime, sucesso: $alarmScheduled');
-        if (!alarmScheduled) {
-          print('DEBUG: ERRO: Falha ao agendar alarme com AndroidAlarmManager - Verificando permissões');
-          final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-          bool? exactAlarmsGranted = await androidPlugin?.requestExactAlarmsPermission();
-          print('DEBUG: Permissão de alarme exato após falha: $exactAlarmsGranted');
-          if (exactAlarmsGranted == true) {
-            try {
-              final retryScheduled = await AndroidAlarmManager.oneShot(
-                Duration(milliseconds: delay),
-                uniqueAlarmId,
-                alarmCallback,
-                exact: true,
-                allowWhileIdle: true,
-                wakeup: true,
-                params: {
-                  'id': id,
-                  'title': title,
-                  'body': body ?? 'Toque para ver os medicamentos',
-                  'payload': payload,
-                  'sound': sound,
-                },
-              );
-              print('DEBUG: Tentativa de reagendamento com AndroidAlarmManager, sucesso: $retryScheduled');
-              if (!retryScheduled) {
-                print('DEBUG: ERRO: Reagendamento falhou, usando fallback via MethodChannel');
-              } else {
-                return; // Sucesso no reagendamento, sair sem usar fallback
-              }
-            } catch (retryError, retryStackTrace) {
-              print('DEBUG: Exceção ao tentar reagendar com AndroidAlarmManager: $retryError');
-              print('DEBUG: StackTrace: $retryStackTrace');
-            }
-          } else {
-            print('DEBUG: Permissão de alarme exato não concedida, usando fallback via MethodChannel');
-          }
-          // Prosseguir com o fallback via Timer
-          print('DEBUG: Agendando fallback via Timer para FullScreenAlarmActivity após $delay ms');
-          final payloadParts = payload.split('|');
-          if (payloadParts.length >= 2) {
-            final horario = payloadParts[0];
-            final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
-            Timer(Duration(milliseconds: delay), () async {
-              print('DEBUG: Timer disparado, chamando MethodChannel showFullScreenAlarm com horario=$horario, medicationIds=$medicationIds');
-              try {
-                final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
-                  'horario': horario,
-                  'medicationIds': medicationIds,
-                  'payload': payload,
-                  'title': title,
-                  'body': body ?? 'Toque para ver os medicamentos',
-                });
-                print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel após $delay ms, resultado: $result');
-              } catch (fallbackError, fallbackStackTrace) {
-                print('DEBUG: Erro no fallback do MethodChannel: $fallbackError');
-                print('DEBUG: StackTrace: $fallbackStackTrace');
-                // Tentar notificação nativa como último recurso
-                await _notificationsPlugin.show(
-                  id,
-                  title,
-                  body ?? 'Toque para ver os medicamentos',
-                  NotificationDetails(
-                    android: AndroidNotificationDetails(
-                      'medication_channel',
-                      'Lembrete de Medicamento',
-                      channelDescription: 'Notificações para lembretes de medicamentos',
-                      importance: Importance.max,
-                      priority: Priority.high,
-                      sound: RawResourceAndroidNotificationSound(sound),
-                      playSound: true,
-                      icon: '@mipmap/ic_launcher',
-                      largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-                      fullScreenIntent: true,
-                      visibility: NotificationVisibility.public,
-                      enableVibration: true,
-                      enableLights: true,
-                      ledColor: Colors.blue,
-                      autoCancel: true,
-                      category: AndroidNotificationCategory.alarm,
-                    ),
-                  ),
-                  payload: payload,
-                );
-                print('DEBUG: Notificação nativa exibida como último recurso');
-              }
-            });
-            return;
-          }
-        }
-      } catch (e, stackTrace) {
-        print('DEBUG: Exceção capturada ao agendar alarme com AndroidAlarmManager: $e');
-        print('DEBUG: StackTrace: $stackTrace');
-        // Fallback para Timer
-        print('DEBUG: Agendando fallback via Timer para FullScreenAlarmActivity após $delay ms');
-        final payloadParts = payload.split('|');
-        if (payloadParts.length >= 2) {
-          final horario = payloadParts[0];
-          final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
-          Timer(Duration(milliseconds: delay), () async {
-            print('DEBUG: Timer disparado, chamando MethodChannel showFullScreenAlarm com horario=$horario, medicationIds=$medicationIds');
-            try {
-              final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
-                'horario': horario,
-                'medicationIds': medicationIds,
-                'payload': payload,
-                'title': title,
-                'body': body ?? 'Toque para ver os medicamentos',
-              });
-              print('DEBUG: FullScreenAlarmActivity disparada com sucesso via MethodChannel após $delay ms, resultado: $result');
-            } catch (fallbackError, fallbackStackTrace) {
-              print('DEBUG: Erro no fallback do MethodChannel: $fallbackError');
-              print('DEBUG: StackTrace: $fallbackStackTrace');
-              // Tentar notificação nativa como último recurso
-              await _notificationsPlugin.show(
-                id,
-                title,
-                body ?? 'Toque para ver os medicamentos',
-                NotificationDetails(
-                  android: AndroidNotificationDetails(
-                    'medication_channel',
-                    'Lembrete de Medicamento',
-                    channelDescription: 'Notificações para lembretes de medicamentos',
-                    importance: Importance.max,
-                    priority: Priority.high,
-                    sound: RawResourceAndroidNotificationSound(sound),
-                    playSound: true,
-                    icon: '@mipmap/ic_launcher',
-                    largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-                    fullScreenIntent: true,
-                    visibility: NotificationVisibility.public,
-                    enableVibration: true,
-                    enableLights: true,
-                    ledColor: Colors.blue,
-                    autoCancel: true,
-                    category: AndroidNotificationCategory.alarm,
-                  ),
-                ),
-                payload: payload,
-              );
-              print('DEBUG: Notificação nativa exibida como último recurso');
-            }
-          });
-          return;
-        }
+        await androidPlugin.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'medication_channel',
+            'Lembrete de Medicamento',
+            description: 'Notificações para lembretes de medicamentos',
+            importance: Importance.max,
+            playSound: false, // 🔹 IMPORTANTE: desativa som do canal
+            enableVibration: true,
+            enableLights: true,
+            ledColor: Colors.blue,
+            showBadge: false,
+            groupId: 'medication_group',
+          ),
+        );
+        print('DEBUG: Canal de notificação medication_channel recriado');
       }
 
-      final tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
-      final List<AndroidNotificationAction> actions = [
-        const AndroidNotificationAction(
-          'view_action',
-          'Ver',
-          showsUserInterface: true,
-          cancelNotification: true,
-        ),
-      ];
-      final BigTextStyleInformation bigTextStyleInformation = BigTextStyleInformation(
-        body ?? 'Toque para ver os medicamentos',
-        htmlFormatBigText: false,
-        contentTitle: 'Hora do Medicamento',
-        htmlFormatContentTitle: false,
-        summaryText: 'Toque para ver os medicamentos',
-        htmlFormatSummaryText: false,
-      );
+      final scheduledTZDateTime = tz.TZDateTime.now(tz.local).add(Duration(milliseconds: delay));
+      print('DEBUG: Horário agendado convertido para TZDateTime: $scheduledTZDateTime');
 
-      final androidDetails = AndroidNotificationDetails(
-        'medication_channel',
-        'Lembrete de Medicamento',
-        channelDescription: 'Notificações para lembretes de medicamentos',
-        importance: Importance.max,
-        priority: Priority.high,
-        sound: RawResourceAndroidNotificationSound(sound),
-        playSound: true,
-        icon: '@mipmap/ic_launcher',
-        largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-        styleInformation: bigTextStyleInformation,
-        actions: actions,
-        fullScreenIntent: true,
-        visibility: NotificationVisibility.public,
-        enableVibration: true,
-        enableLights: true,
-        ledColor: Colors.blue,
-        ledOnMs: 1000,
-        ledOffMs: 500,
-        autoCancel: true,
-        category: AndroidNotificationCategory.alarm,
-      );
-
+      // Agendar notificação
       await _notificationsPlugin.zonedSchedule(
         id,
-        'Hora do Medicamento',
+        title,
         body ?? 'Toque para ver os medicamentos',
-        tzScheduledTime,
-        NotificationDetails(android: androidDetails),
+        scheduledTZDateTime,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'medication_channel',
+            'Lembrete de Medicamento',
+            channelDescription: 'Notificações para lembretes de medicamentos',
+            importance: Importance.max,
+            priority: Priority.high,
+            playSound: false, // 🔹 O som será disparado manualmente
+            ongoing: true,
+            autoCancel: false,
+            fullScreenIntent: true,
+            icon: '@mipmap/ic_launcher',
+            visibility: NotificationVisibility.public,
+            enableVibration: true,
+            enableLights: true,
+            ledColor: Colors.blue,
+            ledOnMs: 1000,
+            ledOffMs: 500,
+            category: AndroidNotificationCategory.alarm,
+            actions: const [
+              AndroidNotificationAction(
+                'view_action',
+                'Ver',
+                showsUserInterface: true,
+                cancelNotification: true,
+              ),
+              AndroidNotificationAction(
+                'snooze_action',
+                'Adiar 15 minutos',
+                cancelNotification: true,
+              ),
+            ],
+          ),
+        ),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
       );
-      print('DEBUG: Notificação nativa agendada com sucesso para $tzScheduledTime');
+
+      print('DEBUG: Notificação agendada para $scheduledTZDateTime com ID $id');
+
+      // 🔹 Não chamar _playAlarmSound aqui! Será chamado somente quando a notificação for exibida
+
     } catch (e, stackTrace) {
-      print('DEBUG: Erro ao agendar notificação: $e');
+      print('DEBUG: Erro ao agendar notificação nativa: $e');
       print('DEBUG: StackTrace: $stackTrace');
-      rethrow;
+    }
+  }
+
+
+
+
+
+  Future<void> _playAlarmSound(String sound) async {
+    try {
+      print('DEBUG: Tentando carregar asset: assets/sounds/$sound.mp3');
+      await _audioPlayer.stop(); // Parar qualquer som anterior
+      await _audioPlayer.setAsset('assets/sounds/$sound.mp3');
+      await _audioPlayer.setLoopMode(LoopMode.all);
+      print('DEBUG: LoopMode.all configurado para $sound.mp3');
+      await _audioPlayer.setVolume(1.0);
+      await _audioPlayer.play();
+      print('DEBUG: Som de alarme iniciado, estado do player: ${_audioPlayer.playing}');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro ao tocar som de alarme: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+      // Tentar um som alternativo como fallback
+      try {
+        print('DEBUG: Tentando som alternativo: assets/sounds/alert.mp3');
+        await _audioPlayer.stop();
+        await _audioPlayer.setAsset('assets/sounds/alert.mp3');
+        await _audioPlayer.setLoopMode(LoopMode.all);
+        print('DEBUG: LoopMode.all configurado para alert.mp3');
+        await _audioPlayer.setVolume(1.0);
+        await _audioPlayer.play();
+        print('DEBUG: Som alternativo iniciado, estado do player: ${_audioPlayer.playing}');
+      } catch (e2, stackTrace2) {
+        print('DEBUG: Erro ao tocar som alternativo: $e2');
+        print('DEBUG: StackTrace: $stackTrace2');
+        // Fallback para som nativo
+        print('DEBUG: Tentando som nativo como fallback');
+        final androidDetails = AndroidNotificationDetails(
+          'medication_channel',
+          'Lembrete de Medicamento',
+          channelDescription: 'Notificações para lembretes de medicamentos',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          sound: RawResourceAndroidNotificationSound(sound),
+          audioAttributesUsage: AudioAttributesUsage.alarm,
+          ongoing: true,
+          autoCancel: false,
+          ticker: 'Lembrete de Medicamento',
+          icon: '@mipmap/ic_launcher',
+          visibility: NotificationVisibility.public,
+          enableVibration: true,
+          enableLights: true,
+          ledColor: Colors.blue,
+          ledOnMs: 1000,
+          ledOffMs: 500,
+          category: AndroidNotificationCategory.alarm,
+          fullScreenIntent: true,
+          actions: const [
+            AndroidNotificationAction(
+              'view_action',
+              'Ver',
+              showsUserInterface: true,
+              cancelNotification: true,
+            ),
+            AndroidNotificationAction(
+              'snooze_action',
+              'Adiar 15 minutos',
+              cancelNotification: true,
+            ),
+          ],
+        );
+
+        await _notificationsPlugin.show(
+          9999,
+          'Erro no Som',
+          'Usando som nativo como fallback',
+          NotificationDetails(android: androidDetails),
+        );
+        print('DEBUG: Notificação de erro no som exibida com ID 9999');
+        final activeNotifications = await _notificationsPlugin.getActiveNotifications();
+        print('DEBUG: Notificações ativas após exibir fallback de som: $activeNotifications');
+      }
+    }
+  }
+
+
+  Future<void> stopAlarmSound() async {
+    try {
+      if (_audioPlayer.playing) {
+        await _audioPlayer.stop();
+        print('DEBUG: Som do alarme parado com sucesso');
+      }
+    } catch (e) {
+      print('DEBUG: Erro ao parar o som do alarme: $e');
     }
   }
 
@@ -638,31 +583,19 @@ class NotificationService {
         print('DEBUG: ERRO: Payload nulo ou vazio no alarmCallback');
         return;
       }
-      print('DEBUG: Processando payload: $payload');
-      final payloadParts = payload.split('|');
-      if (payloadParts.length >= 2) {
-        final horario = payloadParts[0];
-        final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
-        print('DEBUG: Horario: $horario, Medication IDs: $medicationIds');
-
-        final result = await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
-          'horario': horario,
-          'medicationIds': medicationIds,
-          'payload': payload,
-          'title': params['title'] as String? ?? 'Hora do Medicamento',
-          'body': params['body'] as String? ?? 'Toque para ver os medicamentos',
-        });
-        print('DEBUG: FullScreenAlarmActivity chamada com sucesso via alarmCallback, resultado: $result');
-      } else {
-        print('DEBUG: ERRO: Payload inválido no alarme: $payload');
-      }
+      await showNotification(
+        id: params['id'] as int,
+        title: params['title'] as String,
+        body: params['body'] as String,
+        sound: params['sound'] as String,
+        payload: payload,
+      );
+      print('DEBUG: Notificação exibida via alarmCallback');
     } catch (e, stackTrace) {
-      print('DEBUG: Erro ao chamar FullScreenAlarmActivity via alarmCallback: $e');
+      print('DEBUG: Erro no alarmCallback: $e');
       print('DEBUG: StackTrace: $stackTrace');
     }
   }
-
-
 
   Future<void> stopNotificationSound(int id) async {
     print('DEBUG: Parando som da notificação com id: $id');
@@ -674,8 +607,6 @@ class NotificationService {
     }
   }
 
-
-
   Future<void> cancelAllNotifications() async {
     print('DEBUG: Cancelando todas as notificações pendentes');
     try {
@@ -686,20 +617,7 @@ class NotificationService {
     }
   }
 
-
-
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
     return await _notificationsPlugin.pendingNotificationRequests();
-  }
-
-
-  Future<bool> _isInDozeMode() async {
-    try {
-      final result = await MethodChannel('com.claudinei.medialerta/device').invokeMethod('isInDozeMode');
-      return result as bool;
-    } catch (e) {
-      print('DEBUG: Erro ao verificar Doze Mode: $e');
-      return false;
-    }
   }
 }

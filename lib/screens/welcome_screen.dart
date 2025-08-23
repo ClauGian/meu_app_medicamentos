@@ -138,7 +138,7 @@ class WelcomeScreen extends StatelessWidget {
                       body: 'Você tem ${medicationIds.length} medicamentos para tomar',
                       payload: payload,
                       scheduledTime: DateTime.now().add(Duration(seconds: 10)),
-                      sound: 'alarm',
+                      sound: 'malta',
                     );
 
                     print('DEBUG: Notificação agendada para daqui 10 segundos');

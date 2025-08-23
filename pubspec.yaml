@@ -27,6 +27,7 @@ dependencies:
   sqflite_common_ffi: ^2.3.3
   android_alarm_manager_plus: ^4.0.7  
   app_settings_plus: ^5.2.0+2
+  just_audio: ^0.10.4
   
 
 dev_dependencies:

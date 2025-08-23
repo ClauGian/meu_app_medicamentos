@@ -137,7 +137,7 @@ class DailyAlertsScreenState extends State<DailyAlertsScreen> {
                             ? dosePorAlarme.toInt().toString()
                             : dosePorAlarme.toString();
                         final id = med['id'].toString();
-                        final fotoPath = med['foto_embalagem'] as String? ?? '';
+                        
 
                         return GestureDetector(
                           onTap: () {
