@@ -27,8 +27,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFCCCCCC),
       appBar: AppBar(
+        toolbarHeight: 120,
         title: Padding(
-          padding: const EdgeInsets.only(top: 20.0, left: 16.0),
+          padding: const EdgeInsets.only(top: 22, left: 25.0),
           child: RichText(
             text: const TextSpan(
               children: [
@@ -36,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   text: 'Medi',
                   style: TextStyle(
                     color: Color.fromRGBO(0, 105, 148, 1),
-                    fontSize: 42,
+                    fontSize: 45,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -44,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   text: 'Alerta',
                   style: TextStyle(
                     color: Color.fromRGBO(85, 170, 85, 1),
-                    fontSize: 42,
+                    fontSize: 45,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -56,9 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         leading: Builder(
           builder: (context) => Padding(
-            padding: const EdgeInsets.only(top: 10.0, left: 16.0),
+            padding: const EdgeInsets.only(top: 20.0, left: 16.0),
             child: IconButton(
-              icon: const Icon(Icons.menu, size: 50),
+              icon: const Icon(Icons.menu, size: 60),
               color: const Color.fromRGBO(0, 0, 0, 1),
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
@@ -75,41 +76,43 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: const Color(0xFFF0F8F0),
         child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color.fromRGBO(0, 105, 148, 1),
-                    Color.fromRGBO(85, 170, 85, 1),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            SafeArea(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color.fromRGBO(0, 105, 148, 1),
+                      Color.fromRGBO(85, 170, 85, 1),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 40.0, bottom: 12.0),
-                child: Center(
-                  child: RichText(
-                    text: const TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'Medi',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 10.0, bottom: 12.0),
+                  child: Center(
+                    child: RichText(
+                      text: const TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Medi',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                        TextSpan(
-                          text: 'Alerta',
-                          style: TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                          TextSpan(
+                            text: 'Alerta',
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -162,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 100),
+              const SizedBox(height: 70),
               RichText(
                 textAlign: TextAlign.center,
                 text: const TextSpan(
@@ -216,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 100),
+              const SizedBox(height: 80),
               ElevatedButton(
                 onPressed: () {
                   Navigator.push(
