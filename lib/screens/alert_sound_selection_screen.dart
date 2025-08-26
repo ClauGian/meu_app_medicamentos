@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:just_audio/just_audio.dart';
 
 class AlertSoundSelectionScreen extends StatefulWidget {
   const AlertSoundSelectionScreen({super.key});
@@ -19,7 +19,7 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSelectedSound();
+    _loadSelectedSound();  
   }
 
   Future<void> _loadSelectedSound() async {
@@ -42,9 +42,21 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
       if (selectedSound != null) {
         await audioPlayer.stop();
         try {
-          await audioPlayer.play(AssetSource('sounds/$selectedSound'));
+          await audioPlayer.setAsset('sounds/$selectedSound');
+          await audioPlayer.setLoopMode(LoopMode.off);
+          await audioPlayer.setVolume(1.0);
+          await audioPlayer.play();
           setState(() {
             _isPlaying = true;
+          });
+
+          // Monitorar a conclusão da reprodução
+          audioPlayer.playerStateStream.listen((playerState) {
+            if (playerState.processingState == ProcessingState.completed) {
+              setState(() {
+                _isPlaying = false;
+              });
+            }
           });
         } catch (e) {
           print('Erro ao reproduzir áudio: $e');
@@ -52,11 +64,6 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
             const SnackBar(content: Text('Erro ao reproduzir o som.')),
           );
         }
-        audioPlayer.onPlayerComplete.listen((event) {
-          setState(() {
-            _isPlaying = false;
-          });
-        });
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Selecione um som primeiro.')),
@@ -64,6 +71,8 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
       }
     }
   }
+
+
 
   void _toggleEditing() {
     setState(() {

@@ -215,7 +215,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
           .toList();
 
       if (medicationIds.isNotEmpty) {
-        final newTime = DateTime.now().add(Duration(seconds: 30));
+        final newTime = DateTime.now().add(Duration(minutes: 15)); // 🔹 Delay de 15 minutos
         final payload = '${widget.horario}|${medicationIds.join(',')}';
         final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
 
@@ -225,11 +225,11 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
             title: 'Alerta de Medicamento: ${widget.horario}',
             body: 'Você tem ${medicationIds.length} medicamentos adiados para tomar',
             payload: payload,
-            sound: 'alarm',
+            sound: 'malta', // 🔹 Alterado de 'alarm' para 'malta'
             scheduledTime: newTime,
           );
           print('DEBUG: Notificação unificada agendada para ${medicationIds.length} medicamentos: $medicationIds');
-
+          
           setState(() {
             medications.removeWhere((m) => medicationIds.contains(m['id'].toString()));
             _checkAndCloseIfDone();
@@ -242,6 +242,8 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       _pendingDelays.clear();
     });
   }
+
+  
 
   Future<void> _handleSkip(int index) async {
     final medication = Map<String, dynamic>.from(medications[index]);

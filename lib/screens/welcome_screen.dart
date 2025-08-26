@@ -103,6 +103,10 @@ class WelcomeScreen extends StatelessWidget {
                   }
                   _isScheduling = true;
                   try {
+                    // 🔹 Cancelar todas as notificações pendentes
+                    await notificationService.cancelAllNotifications();
+                    print('DEBUG: Todas as notificações pendentes canceladas antes do teste');
+
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Teste iniciado: notificação agendada para daqui 10 segundos!'),
