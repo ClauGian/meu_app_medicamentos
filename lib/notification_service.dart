@@ -175,15 +175,15 @@ class NotificationService {
           ),
         );
 
-        // Criar novo canal sem som nativo
+        // Criar novo canal com som nativo
         await androidPlugin.createNotificationChannel(
           const AndroidNotificationChannel(
-            'medication_channel_v2', // 🔹 Novo ID de canal
+            'medication_channel_v2',
             'Lembrete de Medicamento',
-            description: 'Canal sem som, controle feito pelo app',
+            description: 'Canal para lembretes de medicamentos com som nativo',
             importance: Importance.max,
-            playSound: false, // 🔹 Desativar som nativo
-            sound: null, // 🔹 Sem som nativo
+            playSound: true, // 🔹 Ativar som nativo
+            sound: RawResourceAndroidNotificationSound('malta'), // 🔹 Usar malta.mp3 por padrão
             enableVibration: true,
             enableLights: true,
             ledColor: Colors.blue,
@@ -191,7 +191,7 @@ class NotificationService {
             groupId: 'medication_group',
           ),
         );
-        print('DEBUG: Canal de notificação medication_channel_v2 recriado sem som nativo');
+        print('DEBUG: Canal de notificação medication_channel_v2 recriado com som nativo');
       } else {
         print('DEBUG: ERRO: AndroidFlutterLocalNotificationsPlugin não disponível');
       }
@@ -333,6 +333,102 @@ class NotificationService {
 
 
 
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    String? body,
+    required String payload,
+    required DateTime scheduledTime,
+    String sound = 'malta', // arquivo mp3 em res/raw (sem extensão)
+  }) async {
+    print('DEBUG: Agendando notificação com id: $id, title: $title, sound: $sound, scheduledTime: $scheduledTime');
+
+    final now = DateTime.now();
+    final delay = scheduledTime.difference(now).inSeconds;
+    print('DEBUG: Horário atual do dispositivo: $now');
+    print('DEBUG: Diferença de tempo (scheduledTime - now): $delay segundos');
+
+    if (delay < 0) {
+      print('DEBUG: Horário agendado já passou, ignorando');
+      return;
+    }
+
+    try {
+      // Inicializar timezone
+      tz.initializeTimeZones();
+      final localTimeZone = tz.getLocation('America/Sao_Paulo');
+      final scheduledTZDateTime = tz.TZDateTime.from(scheduledTime, localTimeZone);
+
+      // Adicionar o som ao payload
+      final updatedPayload = '$payload|$sound';
+
+      // Agendar notificação com som nativo do Android
+      await _notificationsPlugin.zonedSchedule(
+        id,
+        title,
+        body ?? 'Toque para ver os medicamentos',
+        scheduledTZDateTime,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'medication_channel_v3',
+            'Lembrete de Medicamento',
+            channelDescription: 'Notificações para lembretes de medicamentos',
+            importance: Importance.max,
+            priority: Priority.high,
+            playSound: true,
+            sound: RawResourceAndroidNotificationSound(sound),
+            icon: '@mipmap/ic_launcher',
+            largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+            actions: const [
+              AndroidNotificationAction(
+                'view_action',
+                'Ver',
+                showsUserInterface: true,
+                cancelNotification: true,
+              ),
+              AndroidNotificationAction(
+                'snooze_action',
+                'Adiar 15 minutos',
+                cancelNotification: true,
+              ),
+            ],
+            visibility: NotificationVisibility.public,
+            enableVibration: true,
+            enableLights: true,
+            ledColor: Colors.blue,
+            ledOnMs: 1000,
+            ledOffMs: 500,
+            autoCancel: false,
+            ongoing: true,
+            fullScreenIntent: true,
+            category: AndroidNotificationCategory.alarm,
+          ),
+        ),
+        payload: updatedPayload,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+
+      // Agendar execução do som via AlarmManager para loop contínuo
+      await AndroidAlarmManager.oneShotAt(
+        scheduledTime,
+        id, 
+        () async {
+          print('DEBUG: AlarmManager disparado, iniciando playAlarmSound para ID: $id');
+          await playAlarmSound(sound);
+        },
+        exact: true,
+        wakeup: true,
+        rescheduleOnReboot: true,
+      );
+
+      print('DEBUG: Notificação agendada com zonedSchedule e AlarmManager, ID: $id, ScheduledTime: $scheduledTZDateTime');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro ao agendar notificação: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+    }
+  }
+
+
 
   Future<void> showNotification({
     required int id,
@@ -353,13 +449,13 @@ class NotificationService {
       );
 
       final androidDetails = AndroidNotificationDetails(
-        'medication_channel',
+        'medication_channel_v3',
         'Lembrete de Medicamento',
         channelDescription: 'Notificações para lembretes de medicamentos',
         importance: Importance.max,
         priority: Priority.high,
-        sound: RawResourceAndroidNotificationSound(sound), // TODO: Substituir por som selecionado em AlertSoundSelection
         playSound: true,
+        sound: RawResourceAndroidNotificationSound(sound),
         icon: '@mipmap/ic_launcher',
         largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
         styleInformation: bigTextStyleInformation,
@@ -380,7 +476,11 @@ class NotificationService {
         enableVibration: true,
         enableLights: true,
         ledColor: Colors.blue,
-        autoCancel: true,
+        ledOnMs: 1000,
+        ledOffMs: 500,
+        autoCancel: false,
+        ongoing: true,
+        fullScreenIntent: true,
         category: AndroidNotificationCategory.alarm,
       );
 
@@ -391,6 +491,7 @@ class NotificationService {
         NotificationDetails(android: androidDetails),
         payload: payload,
       );
+
       print('DEBUG: Notificação exibida com sucesso');
     } catch (e, stackTrace) {
       print('DEBUG: Erro ao exibir notificação: $e');
@@ -400,178 +501,21 @@ class NotificationService {
 
 
 
-  Future<void> scheduleNotification({
-    required int id,
-    required String title,
-    String? body,
-    required String payload,
-    required DateTime scheduledTime,
-    String sound = 'alarm', // TODO: Substituir por som selecionado em AlertSoundSelection
-  }) async {
-    print('DEBUG: Agendando notificação com id: $id, title: $title, sound: $sound, scheduledTime: $scheduledTime');
-
-    final now = DateTime.now();
-    final delay = scheduledTime.difference(now).inMilliseconds;
-    print('DEBUG: Horário atual do dispositivo: $now');
-    print('DEBUG: Diferença de tempo (scheduledTime - now): ${delay / 1000} segundos');
-
-    if (delay < 0) {
-      print('DEBUG: Horário agendado já passou, ignorando');
-      return;
-    }
-
-    try {
-      // Adicionar o som ao payload
-      final updatedPayload = '$payload|$sound';
-      // Passar o delay para _showNativeNotification
-      await _showNativeNotification(id, title, body, updatedPayload, sound, scheduledTime, delay);
-      print('DEBUG: Notificação agendada diretamente com flutter_local_notifications');
-    } catch (e, stackTrace) {
-      print('DEBUG: Erro ao agendar notificação: $e');
-      print('DEBUG: StackTrace: $stackTrace');
-    }
-  }
-
-
-
-  Future<void> _showNativeNotification(int id, String title, String? body, String payload, String sound, DateTime scheduledTime, int delay) async {
-    try {
-      tz.initializeTimeZones();
-      final localTimeZone = tz.getLocation('America/Sao_Paulo');
-      tz.setLocalLocation(localTimeZone);
-      print('DEBUG: Timezone inicializado: ${tz.local.name}');
-
-      final androidPlugin = _notificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-      if (androidPlugin != null) {
-        await androidPlugin.deleteNotificationChannel('medication_channel');
-        await androidPlugin.deleteNotificationChannel('medication_channel_v2');
-        print('DEBUG: Canais de notificação medication_channel e medication_channel_v2 deletados para recriação');
-        
-        await androidPlugin.createNotificationChannelGroup(
-          const AndroidNotificationChannelGroup(
-            'medication_group',
-            'Medicamentos',
-            description: 'Grupo de notificações para lembretes de medicamentos',
-          ),
-        );
-        await androidPlugin.createNotificationChannel(
-          const AndroidNotificationChannel(
-            'medication_channel_v2',
-            'Lembrete de Medicamento',
-            description: 'Canal sem som, controle feito pelo app',
-            importance: Importance.max,
-            playSound: false,
-            sound: null,
-            enableVibration: true,
-            enableLights: true,
-            ledColor: Colors.blue,
-            showBadge: false,
-            groupId: 'medication_group',
-          ),
-        );
-        print('DEBUG: Canal de notificação medication_channel_v2 recriado sem som nativo');
-      } else {
-        print('DEBUG: ERRO: AndroidFlutterLocalNotificationsPlugin não disponível');
-        return;
-      }
-
-      final bool? notificationsEnabled = await androidPlugin.areNotificationsEnabled();
-      print('DEBUG: Notificações habilitadas: $notificationsEnabled');
-      if (notificationsEnabled == false) {
-        print('DEBUG: ERRO: Permissões de notificação não concedidas');
-        await androidPlugin.requestNotificationsPermission();
-        print('DEBUG: Solicitação de permissão de notificação enviada');
-        return;
-      }
-
-      final bool? exactAlarmPermission = await androidPlugin.requestExactAlarmsPermission();
-      print('DEBUG: Permissões de alarme exato concedidas: $exactAlarmPermission');
-      if (exactAlarmPermission == false) {
-        print('DEBUG: ERRO: Permissões de alarme exato não concedidas');
-        return;
-      }
-
-      final now = tz.TZDateTime.now(tz.local);
-      final scheduledTZDateTime = now.add(Duration(milliseconds: delay));
-      print('DEBUG: Horário atual do dispositivo (TZ): $now');
-      print('DEBUG: Horário agendado convertido para TZDateTime: $scheduledTZDateTime');
-      print('DEBUG: Delay em milissegundos: $delay');
-
-      // 🔹 Usar show com delay para testar o listener
-      await Future.delayed(Duration(milliseconds: delay));
-      await _notificationsPlugin.show(
-        id,
-        title,
-        body ?? 'Toque para ver os medicamentos',
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'medication_channel_v2',
-            'Lembrete de Medicamento',
-            channelDescription: 'Canal sem som, controle feito pelo app',
-            importance: Importance.max,
-            priority: Priority.high,
-            playSound: false,
-            sound: null,
-            ongoing: true,
-            autoCancel: false,
-            fullScreenIntent: true,
-            icon: '@mipmap/ic_launcher',
-            visibility: NotificationVisibility.public,
-            enableVibration: true,
-            enableLights: true,
-            ledColor: Colors.blue,
-            ledOnMs: 1000,
-            ledOffMs: 500,
-            category: null,
-            actions: const [
-              AndroidNotificationAction(
-                'view_action',
-                'Ver',
-                showsUserInterface: true,
-                cancelNotification: true,
-              ),
-              AndroidNotificationAction(
-                'snooze_action',
-                'Adiar 15 minutos',
-                cancelNotification: true,
-              ),
-            ],
-          ),
-        ),
-        payload: payload,
-      );
-      print('DEBUG: Notificação exibida com sucesso com ID $id');
-
-      // 🔹 Forçar som manualmente após exibição
-      try {
-        print('DEBUG: Tentando forçar som: $sound');
-        await playAlarmSound(sound);
-        print('DEBUG: Som forçado manualmente após exibição, estado do player: ${_audioPlayer?.playing}');
-      } catch (e, stackTrace) {
-        print('DEBUG: Erro ao forçar som após exibição: $e');
-        print('DEBUG: StackTrace: $stackTrace');
-      }
-
-      // 🔹 Log de notificações ativas
-      final activeNotifications = await _notificationsPlugin.getActiveNotifications();
-      print('DEBUG: Notificações ativas após exibição: $activeNotifications');
-    } catch (e, stackTrace) {
-      print('DEBUG: Erro ao exibir notificação nativa: $e');
-      print('DEBUG: StackTrace: $stackTrace');
-    }
-  }
-
 
 
   Future<void> initializeNotificationListeners() async {
     // 🔹 Pré-carregar o AudioPlayer
     if (_audioPlayer == null) {
       _audioPlayer = AudioPlayer();
-      await _audioPlayer!.setAsset('assets/sounds/malta.mp3');
-      await _audioPlayer!.setLoopMode(LoopMode.off);
-      await _audioPlayer!.setVolume(1.0);
-      await _audioPlayer!.stop();
-      print('DEBUG: AudioPlayer pré-carregado com malta.mp3');
+      try {
+        await _audioPlayer!.setAsset('assets/sounds/malta.mp3');
+        await _audioPlayer!.setLoopMode(LoopMode.all); // Loop para alarme
+        await _audioPlayer!.setVolume(1.0);
+        await _audioPlayer!.stop();
+        print('DEBUG: AudioPlayer pré-carregado com malta.mp3');
+      } catch (e) {
+        print('DEBUG: Erro ao pré-carregar AudioPlayer com malta.mp3: $e');
+      }
     }
 
     const AndroidInitializationSettings initializationSettingsAndroid =
@@ -587,16 +531,16 @@ class NotificationService {
         onDidReceiveNotificationResponse: (NotificationResponse response) async {
           print('DEBUG: Notificação recebida - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
 
-          // 🔹 Tocar som apenas se não houver ação (notificação recém-exibida)
-          if (response.actionId == null) {
+          // 🔹 Tocar som via AudioPlayer para notificações recém-exibidas
+          if (response.actionId == null && response.id != null) {
             final payloadParts = response.payload?.split('|') ?? [];
             final sound = payloadParts.length >= 3 ? payloadParts[2] : 'malta';
-            print('DEBUG: Tocando som para notificação recém-exibida: $sound');
+            print('DEBUG: Tocando som via AudioPlayer para notificação ID ${response.id}: $sound');
             try {
               await playAlarmSound(sound);
               print('DEBUG: Som iniciado para notificação ID ${response.id}, estado do player: ${_audioPlayer!.playing}');
             } catch (e, stackTrace) {
-              print('DEBUG: Erro ao tocar som para notificação exibida: $e');
+              print('DEBUG: Erro ao tocar som para notificação ID ${response.id}: $e');
               print('DEBUG: StackTrace: $stackTrace');
             }
           } else {
@@ -621,94 +565,29 @@ class NotificationService {
 
   Future<void> playAlarmSound(String sound) async {
     try {
-      // 🔹 Inicializar o _audioPlayer se necessário
+      print('DEBUG: Iniciando playAlarmSound para som: $sound');
       if (_audioPlayer == null) {
         _audioPlayer = AudioPlayer();
         print('DEBUG: AudioPlayer inicializado em playAlarmSound');
+      } else {
+        print('DEBUG: AudioPlayer já existe, estado atual: ${_audioPlayer!.playing}');
+        await _audioPlayer!.stop(); // Parar qualquer reprodução anterior
       }
 
-      // 🔹 Verificar se o player está em estado de carregamento
-      if (_audioPlayer!.processingState == ProcessingState.loading ||
-          _audioPlayer!.processingState == ProcessingState.buffering) {
-        print('DEBUG: AudioPlayer está carregando, reinicializando...');
-        await _audioPlayer!.stop();
-        await _audioPlayer!.dispose();
-        _audioPlayer = AudioPlayer();
-      }
-
-      // 🔹 Parar qualquer som anterior
-      await _audioPlayer!.stop();
-      print('DEBUG: Som anterior parado em playAlarmSound');
-
-      // 🔹 Definir o caminho do asset
-      final assetPath = 'assets/sounds/$sound.mp3';
-      print('DEBUG: Tentando carregar asset: $assetPath');
-
-      // 🔹 Verificar se o asset existe
-      try {
-        final asset = await DefaultAssetBundle.of(WidgetsBinding.instance.rootElement!).load(assetPath);
-        print('DEBUG: Asset $assetPath encontrado, tamanho: ${asset.buffer.lengthInBytes} bytes');
-      } catch (e) {
-        print('DEBUG: ERRO: Asset $assetPath não encontrado: $e');
-        return;
-      }
-
-      // 🔹 Configurar e tocar o som
-      await _audioPlayer!.setAsset(assetPath);
+      // Configurar asset e loop infinito
+      await _audioPlayer!.setAsset('assets/sounds/$sound.mp3');
       await _audioPlayer!.setLoopMode(LoopMode.all);
       await _audioPlayer!.setVolume(1.0);
-      
-      // 🔹 Adicionar delay para garantir carregamento
-      await Future.delayed(const Duration(milliseconds: 500));
-      await _audioPlayer!.play();
-      print('DEBUG: Som de alarme iniciado após delay, estado do player: ${_audioPlayer!.playing}');
-    } catch (e, stackTrace) {
-      print('DEBUG: Erro ao tocar som de alarme: $e');
-      print('DEBUG: StackTrace: $stackTrace');
-      // 🔹 Fallback para notificação sem som
-      final androidDetails = AndroidNotificationDetails(
-        'medication_channel_v2',
-        'Lembrete de Medicamento',
-        channelDescription: 'Canal sem som, controle feito pelo app',
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: false,
-        sound: null,
-        ongoing: true,
-        autoCancel: false,
-        ticker: 'Lembrete de Medicamento',
-        icon: '@mipmap/ic_launcher',
-        visibility: NotificationVisibility.public,
-        enableVibration: true,
-        enableLights: true,
-        ledColor: Colors.blue,
-        ledOnMs: 1000,
-        ledOffMs: 500,
-        category: null,
-        actions: const [
-          AndroidNotificationAction(
-            'view_action',
-            'Ver',
-            showsUserInterface: true,
-            cancelNotification: true,
-          ),
-          AndroidNotificationAction(
-            'snooze_action',
-            'Adiar 15 minutos',
-            cancelNotification: true,
-          ),
-        ],
-      );
 
-      await _notificationsPlugin.show(
-        9999,
-        'Erro no Som',
-        'Não foi possível tocar o som do alarme',
-        NotificationDetails(android: androidDetails),
-      );
-      print('DEBUG: Notificação de erro no som exibida com ID 9999');
+      print('DEBUG: Iniciando reprodução do som');
+      await _audioPlayer!.play();
+      print('DEBUG: Som $sound iniciado em loop, estado do player: ${_audioPlayer!.playing}');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro em playAlarmSound para $sound: $e');
+      print('DEBUG: StackTrace: $stackTrace');
     }
   }
+
 
 
 
