@@ -501,6 +501,31 @@ class NotificationService {
 
 
 
+  Future<void> playAlarmSound(String sound) async {
+    try {
+      print('DEBUG: Iniciando playAlarmSound para som: $sound');
+      if (_audioPlayer == null) {
+        _audioPlayer = AudioPlayer();
+        print('DEBUG: AudioPlayer inicializado em playAlarmSound');
+      } else {
+        print('DEBUG: AudioPlayer já existe, estado atual: ${_audioPlayer!.playing}');
+        await _audioPlayer!.stop(); // Parar qualquer reprodução anterior
+      }
+
+      // Configurar asset e loop infinito
+      await _audioPlayer!.setAsset('assets/sounds/$sound.mp3');
+      await _audioPlayer!.setLoopMode(LoopMode.all);
+      await _audioPlayer!.setVolume(1.0);
+
+      print('DEBUG: Iniciando reprodução do som');
+      await _audioPlayer!.play();
+      print('DEBUG: Som $sound iniciado em loop, estado do player: ${_audioPlayer!.playing}');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro em playAlarmSound para $sound: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+    }
+  }
+
 
 
   Future<void> initializeNotificationListeners() async {
@@ -560,34 +585,6 @@ class NotificationService {
       print('DEBUG: StackTrace: $stackTrace');
     }
   }
-
-
-
-  Future<void> playAlarmSound(String sound) async {
-    try {
-      print('DEBUG: Iniciando playAlarmSound para som: $sound');
-      if (_audioPlayer == null) {
-        _audioPlayer = AudioPlayer();
-        print('DEBUG: AudioPlayer inicializado em playAlarmSound');
-      } else {
-        print('DEBUG: AudioPlayer já existe, estado atual: ${_audioPlayer!.playing}');
-        await _audioPlayer!.stop(); // Parar qualquer reprodução anterior
-      }
-
-      // Configurar asset e loop infinito
-      await _audioPlayer!.setAsset('assets/sounds/$sound.mp3');
-      await _audioPlayer!.setLoopMode(LoopMode.all);
-      await _audioPlayer!.setVolume(1.0);
-
-      print('DEBUG: Iniciando reprodução do som');
-      await _audioPlayer!.play();
-      print('DEBUG: Som $sound iniciado em loop, estado do player: ${_audioPlayer!.playing}');
-    } catch (e, stackTrace) {
-      print('DEBUG: Erro em playAlarmSound para $sound: $e');
-      print('DEBUG: StackTrace: $stackTrace');
-    }
-  }
-
 
 
 
