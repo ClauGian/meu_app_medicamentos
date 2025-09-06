@@ -57,8 +57,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
   String? _type;
   String? _frequency;
   bool _isContinuous = false;
-  File? _image; 
-  bool _showPhotoOption = false; // ou o valor inicial apropriado 
+  File? _image;   
   final ImagePicker _picker = ImagePicker();
 
   int _getDoseCount(String? frequency) {
@@ -128,8 +127,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
       _fillFieldsForEditing();
     }
 
-    _checkUserAge();
-
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(0.0);
@@ -187,13 +185,6 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
     }
   }
 
-  void _checkUserAge() {
-    const birthDate = "1960-04-01";
-    final age = DateTime.now().difference(DateTime.parse(birthDate)).inDays ~/ 365;
-    setState(() {
-      _showPhotoOption = age >= 60;
-    });
-  }
 
   Future<void> _scrollToField(GlobalKey key) async {
     try {
@@ -1008,7 +999,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
           );
         });
         // Mantém o comportamento original de foco e rolagem
-        FocusScope.of(context).requestFocus(_timeFocusNodes.isNotEmpty ? _timeFocusNodes[0] : _continuousUseFocusNode ?? _startDateFocusNode);
+        FocusScope.of(context).requestFocus(_timeFocusNodes.isNotEmpty ? _timeFocusNodes[0] : _continuousUseFocusNode);
         if (_timeFocusNodes.isNotEmpty && _timeKeys.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollToField(_timeKeys[0]);

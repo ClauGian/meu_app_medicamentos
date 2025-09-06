@@ -234,23 +234,21 @@ class NotificationService {
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
     print('DEBUG: Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId}');
 
-    // 🔹 Garantir que o AudioPlayer esteja inicializado
     if (_audioPlayer == null) {
       _audioPlayer = AudioPlayer();
       print('DEBUG: AudioPlayer inicializado em handleNotificationResponse');
     }
 
-    // 🔹 Parar o som imediatamente, independentemente da ação
+    // 🔹 Parar imediatamente qualquer som do alarme
     try {
       await _notificationService.stopAlarmSound();
       print('DEBUG: Som de alarme parado ao iniciar processamento da notificação ID ${response.id}');
     } catch (e) {
-      print('DEBUG: Erro ao parar som no início do handleNotificationResponse: $e');
+      print('DEBUG: Erro ao parar som: $e');
     }
 
-    // 🔹 Verificar se a notificação já foi processada
     if (response.payload == null || response.id == null) {
-      print('DEBUG: ERRO: Payload ou ID nulo');
+      print('DEBUG: Payload ou ID nulo');
       return;
     }
 
@@ -263,26 +261,45 @@ class NotificationService {
     try {
       final payloadParts = response.payload!.split('|');
       if (payloadParts.length < 2) {
-        print('DEBUG: ERRO: Payload inválido: ${response.payload}');
+        print('DEBUG: Payload inválido: ${response.payload}');
         return;
       }
+
       final horario = payloadParts[0];
       final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
-
       if (medicationIds.isEmpty) {
-        print('DEBUG: ERRO: Nenhum ID de medicamento válido encontrado no payload: ${response.payload}');
+        print('DEBUG: Nenhum ID de medicamento válido encontrado no payload');
         return;
       }
 
-      if (_notificationService._database == null) {
-        print('DEBUG: ERRO: Banco de dados não inicializado no handleNotificationResponse');
-        return;
-      }
-
-      if (response.actionId == 'snooze_action') {
-        // Ação "Adiar 15 minutos"
+      // 🔹 Ação "Ver" → abrir MedicationAlertScreen
+      if (response.actionId == 'view_action') {
         await _notificationService._notificationsPlugin.cancel(response.id!);
-        print('DEBUG: Notificação nativa ID ${response.id} cancelada (snooze_action)');
+        print('DEBUG: Notificação ID ${response.id} cancelada (view_action)');
+
+        final navigator = NotificationService.navigatorKey.currentState;
+        if (navigator != null && navigator.mounted) {
+          navigator.pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => MedicationAlertScreen(
+                horario: horario,
+                medicationIds: medicationIds,
+                database: _notificationService._database!,
+                notificationService: _notificationService,
+                rootIsolateToken: RootIsolateToken.instance!,
+              ),
+            ),
+          );
+          print('DEBUG: Navegação para MedicationAlertScreen concluída');
+        } else {
+          print('DEBUG: Navigator não disponível, navegação adiada');
+        }
+      }
+
+      // 🔹 Ação "Adiar" → reagendar alarme para 15 minutos
+      else if (response.actionId == 'snooze_action') {
+        await _notificationService._notificationsPlugin.cancel(response.id!);
+        print('DEBUG: Notificação ID ${response.id} cancelada (snooze_action)');
 
         final newScheduledTime = DateTime.now().add(const Duration(minutes: 15));
         await _notificationService.scheduleNotification(
@@ -291,45 +308,24 @@ class NotificationService {
           body: 'Toque para ver os medicamentos',
           payload: response.payload!,
           scheduledTime: newScheduledTime,
-          sound: 'malta', // 🔹 Forçar malta.mp3
+          sound: 'malta',
         );
         print('DEBUG: Notificação reagendada para 15 minutos depois: $newScheduledTime');
-      } else if (response.actionId == 'view_action' || response.actionId == null) {
-        // Ação "Ver" ou toque na notificação
-        print('DEBUG: Processando ação view_action ou toque na notificação ID ${response.id}');
-        await _notificationService._notificationsPlugin.cancel(response.id!); // 🔹 Cancelar notificação imediatamente
-        print('DEBUG: Notificação nativa ID ${response.id} cancelada (view_action)');
-
-        final navigatorState = NotificationService.navigatorKey.currentState;
-
-        if (navigatorState != null && navigatorState.mounted) {
-          final rootIsolateToken = RootIsolateToken.instance;
-          if (rootIsolateToken == null) {
-            print('DEBUG: ERRO: RootIsolateToken.instance retornou null');
-            throw Exception('RootIsolateToken.instance retornou null');
-          }
-
-          navigatorState.pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => MedicationAlertScreen(
-                horario: horario,
-                medicationIds: medicationIds,
-                database: _notificationService._database!,
-                notificationService: _notificationService,
-                rootIsolateToken: rootIsolateToken,
-              ),
-            ),
-          );
-          print('DEBUG: Navegação para MedicationAlertScreen concluída com horario=$horario, medicationIds=$medicationIds');
-        } else {
-          print('DEBUG: NavigatorState não disponível, adiando navegação');
-        }
       }
+
+      // 🔹 Clique genérico na notificação → apenas parar o som, sem navegação
+      else {
+        print('DEBUG: Clique genérico na notificação, apenas som parado, sem navegação');
+      }
+
     } catch (e, stackTrace) {
       print('DEBUG: ERRO ao processar notificação: $e');
       print('DEBUG: StackTrace: $stackTrace');
     }
   }
+
+
+
 
 
 
@@ -407,21 +403,6 @@ class NotificationService {
         payload: updatedPayload,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
-
-      // Agendar execução do som via AlarmManager para loop contínuo
-      await AndroidAlarmManager.oneShotAt(
-        scheduledTime,
-        id, 
-        () async {
-          print('DEBUG: AlarmManager disparado, iniciando playAlarmSound para ID: $id');
-          await playAlarmSound(sound);
-        },
-        exact: true,
-        wakeup: true,
-        rescheduleOnReboot: true,
-      );
-
-      print('DEBUG: Notificação agendada com zonedSchedule e AlarmManager, ID: $id, ScheduledTime: $scheduledTZDateTime');
     } catch (e, stackTrace) {
       print('DEBUG: Erro ao agendar notificação: $e');
       print('DEBUG: StackTrace: $stackTrace');
@@ -590,23 +571,26 @@ class NotificationService {
 
   Future<void> stopAlarmSound() async {
     try {
-      // 🔹 Inicializar o _audioPlayer se necessário
-      if (_audioPlayer == null) {
-        _audioPlayer = AudioPlayer();
-        print('DEBUG: AudioPlayer inicializado em stopAlarmSound');
-      }
+      // 🔹 Inicializa apenas se necessário
+      _audioPlayer ??= AudioPlayer();
 
       if (_audioPlayer!.playing) {
-        await _audioPlayer!.stop();
-        print('DEBUG: Som do alarme parado com sucesso');
+        print('DEBUG: Parando som do alarme');
+        await _audioPlayer!.stop(); // Para imediatamente
+      } else {
+        print('DEBUG: Nenhum som tocando no momento');
       }
-      await _audioPlayer!.dispose();
-      _audioPlayer = AudioPlayer(); // Recria o player para o próximo uso
-      print('DEBUG: AudioPlayer disposto e reinicializado');
-    } catch (e) {
+
+      // 🔹 Dispose opcional: só se realmente quiser liberar recursos
+      // await _audioPlayer!.dispose();
+      // _audioPlayer = AudioPlayer();
+
+    } catch (e, stackTrace) {
       print('DEBUG: Erro ao parar o som do alarme: $e');
+      print(stackTrace);
     }
   }
+
 
 
 

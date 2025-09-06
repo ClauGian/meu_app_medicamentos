@@ -3,16 +3,22 @@ import 'package:sqflite/sqflite.dart';
 import 'home_screen.dart';
 import '../notification_service.dart';
 
-class WelcomeScreen extends StatelessWidget {
+
+class WelcomeScreen extends StatefulWidget {
   final Database database;
   final NotificationService notificationService;
 
-  WelcomeScreen({
+  const WelcomeScreen({
     super.key,
     required this.database,
     required this.notificationService,
   });
 
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _isScheduling = false;
 
   @override
@@ -79,8 +85,8 @@ class WelcomeScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => HomeScreen(
-                        database: database,
-                        notificationService: notificationService,
+                        database: widget.database,
+                        notificationService: widget.notificationService,
                       ),
                     ),
                   );
@@ -104,7 +110,7 @@ class WelcomeScreen extends StatelessWidget {
                   _isScheduling = true;
                   try {
                     // 🔹 Cancelar todas as notificações pendentes
-                    await notificationService.cancelAllNotifications();
+                    await widget.notificationService.cancelAllNotifications();
                     print('DEBUG: Todas as notificações pendentes canceladas antes do teste');
 
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -113,7 +119,7 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                     );
 
-                    final medications = await database.query(
+                    final medications = await widget.database.query(
                       'medications',
                       where: 'horarios LIKE ?',
                       whereArgs: ['%08:00%'],
@@ -136,7 +142,7 @@ class WelcomeScreen extends StatelessWidget {
                     final timestamp = DateTime.now().millisecondsSinceEpoch;
                     final notificationId = (timestamp.hashCode ^ payload.hashCode).abs() % 1000000;
 
-                    await notificationService.scheduleNotification(
+                    await widget.notificationService.scheduleNotification(
                       id: notificationId,
                       title: 'Alerta de Medicamento: 08:00',
                       body: 'Você tem ${medicationIds.length} medicamentos para tomar',

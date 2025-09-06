@@ -14,28 +14,19 @@ void main() async {
   print('DEBUG: Iniciando main');
 
   final startTime = DateTime.now().millisecondsSinceEpoch;
-  late sqflite.Database database;
-  late NotificationService notificationService;
 
   try {
-    final firebaseFuture = Firebase.initializeApp();
+    await Firebase.initializeApp();
+    print('DEBUG: Firebase inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+    
     final databaseHelper = DatabaseHelper();
-    final databaseFuture = databaseHelper.database;
+    final sqflite.Database database = await databaseHelper.database;
+    print('DEBUG: Database inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
-    await Future.wait([
-      firebaseFuture.then((_) {
-        print('DEBUG: Firebase inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-      }),
-      databaseFuture.then((db) {
-        database = db;
-        print('DEBUG: Database inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-      }),
-    ]);
-
-    notificationService = NotificationService();
+    final NotificationService notificationService = NotificationService();
     await notificationService.init(database);
     print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
+    
     runApp(MyApp(
       database: database,
       notificationService: notificationService,
@@ -73,6 +64,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final ValueNotifier<Map<String, dynamic>?> routeDataNotifier = ValueNotifier<Map<String, dynamic>?>(null);
+  bool _alreadyNavigatedToMedicationAlert = false;
 
   @override
   void initState() {
@@ -94,6 +86,8 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+
+
   @override
   Widget build(BuildContext context) {
     print('DEBUG: Construindo MyApp - Configurando ValueListenableBuilder');
@@ -103,7 +97,7 @@ class _MyAppState extends State<MyApp> {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: ValueListenableBuilder<Map<String, dynamic>?>(
+      home: ValueListenableBuilder<Map<String, dynamic>?>(  
         valueListenable: routeDataNotifier,
         builder: (context, routeData, child) {
           if (routeData == null) {
@@ -117,32 +111,9 @@ class _MyAppState extends State<MyApp> {
           print('DEBUG: routeData no ValueListenableBuilder: $routeData');
 
           if (routeData['route'] == 'medication_alert') {
-            final horario = routeData['horario'] as String? ?? '08:00';
-            final medicationIds = (routeData['medicationIds'] as List<dynamic>?)
-                    ?.map((e) => e.toString())
-                    .toList() ??
-                <String>[];
-            if (medicationIds.isEmpty) {
-              print('DEBUG: AVISO: medicationIds está vazio no ValueListenableBuilder, redirecionando para WelcomeScreen');
-              return WelcomeScreen(
-                database: widget.database,
-                notificationService: widget.notificationService,
-              );
-            }
-            print('DEBUG: Definindo MedicationAlertScreen como tela inicial com horario=$horario, medicationIds=$medicationIds');
-            final rootIsolateToken = RootIsolateToken.instance;
-            if (rootIsolateToken == null) {
-              print('DEBUG: ERRO: RootIsolateToken.instance retornou null no ValueListenableBuilder');
-              throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
-            }
-            return MedicationAlertScreen(
-              horario: horario,
-              medicationIds: medicationIds,
-              database: widget.database,
-              notificationService: widget.notificationService,
-              rootIsolateToken: rootIsolateToken,
-            );
+            return _buildMedicationAlertScreen(routeData);
           }
+
           print('DEBUG: Nenhuma rota especial, definindo WelcomeScreen como tela inicial.');
           return WelcomeScreen(
             database: widget.database,
@@ -158,8 +129,7 @@ class _MyAppState extends State<MyApp> {
           final horario = args['horario'] as String? ?? '08:00';
           final medicationIds = (args['medicationIds'] as List<dynamic>?)
                   ?.map((e) => e.toString())
-                  .toList() ??
-              <String>[];
+                  .toList() ?? <String>[];
           if (medicationIds.isEmpty) {
             print('DEBUG: AVISO: medicationIds está vazio em onGenerateRoute, redirecionando para WelcomeScreen');
             return MaterialPageRoute(
@@ -174,7 +144,7 @@ class _MyAppState extends State<MyApp> {
             print('DEBUG: ERRO: RootIsolateToken.instance retornou null em onGenerateRoute');
             throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter ou o contexto da aplicação.');
           }
-          print('DEBUG: Construindo MedicationAlertScreen via onGenerateRoute com horario=$horario, medicationIds=$medicationIds, rootIsolateToken=$rootIsolateToken');
+          print('DEBUG: Construindo MedicationAlertScreen via onGenerateRoute com horario=$horario, medicationIds=$medicationIds');
           return MaterialPageRoute(
             builder: (context) => MedicationAlertScreen(
               horario: horario,
@@ -206,6 +176,7 @@ class _MyAppState extends State<MyApp> {
             ),
           );
         }
+
         return MaterialPageRoute(
           builder: (context) => WelcomeScreen(
             database: widget.database,
@@ -215,6 +186,40 @@ class _MyAppState extends State<MyApp> {
       },
     );
   }
+
+  Widget _buildMedicationAlertScreen(Map<String, dynamic> routeData) {
+    // 1️⃣ Parar o som imediatamente
+    widget.notificationService.stopAlarmSound();
+
+    final horario = routeData['horario'] as String? ?? '08:00';
+    final medicationIds = (routeData['medicationIds'] as List<dynamic>?)
+        ?.map((e) => e.toString())
+        .toList() ?? <String>[];
+
+    // 2️⃣ Evitar reconstrução duplicada
+    if (!_alreadyNavigatedToMedicationAlert) {
+      _alreadyNavigatedToMedicationAlert = true;
+
+      final rootIsolateToken = RootIsolateToken.instance;
+      if (rootIsolateToken == null) {
+        print('DEBUG: ERRO: RootIsolateToken.instance retornou null');
+        throw Exception('RootIsolateToken.instance retornou null. Verifique a versão do Flutter.');
+      }
+
+      print('DEBUG: Abrindo MedicationAlertScreen com horario=$horario, medicationIds=$medicationIds');
+      return MedicationAlertScreen(
+        horario: horario,
+        medicationIds: medicationIds,
+        database: widget.database,
+        notificationService: widget.notificationService,
+        rootIsolateToken: rootIsolateToken,
+      );
+    }
+
+    // Se já navegou, retorna algo neutro para não reconstruir tela
+    return const SizedBox.shrink();
+  }
+
 
   @override
   void dispose() {

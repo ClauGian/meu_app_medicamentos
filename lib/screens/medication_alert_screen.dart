@@ -47,8 +47,6 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
   List<bool> isSkipped = [];
   bool isLoading = true;
 
-  static final List<Map<String, dynamic>> _pendingDelays = [];
-  static Timer? _delayTimer;
 
   @override
   void initState() {
@@ -189,57 +187,6 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       medications[index] = <String, dynamic>{};
       isTaken[index] = true;
       _checkAndCloseIfDone();
-    });
-  }
-
-  Future<void> _handleDelay(int index, BuildContext context) async {
-    final medicationId = medications[index]['id'].toString();
-    final now = DateTime.now();
-
-    _pendingDelays.add({
-      'medicationId': medicationId,
-      'horario': widget.horario,
-      'timestamp': now,
-    });
-
-    _delayTimer?.cancel();
-
-    _delayTimer = Timer(Duration(seconds: 10), () async {
-      final recentDelays = _pendingDelays.where((delay) {
-        return now.difference(delay['timestamp'] as DateTime).inSeconds <= 10;
-      }).toList();
-
-      final medicationIds = recentDelays
-          .map((delay) => delay['medicationId'] as String)
-          .toSet()
-          .toList();
-
-      if (medicationIds.isNotEmpty) {
-        final newTime = DateTime.now().add(Duration(minutes: 15)); // 🔹 Delay de 15 minutos
-        final payload = '${widget.horario}|${medicationIds.join(',')}';
-        final notificationId = DateTime.now().millisecondsSinceEpoch % 10000;
-
-        try {
-          await widget.notificationService.scheduleNotification(
-            id: notificationId,
-            title: 'Alerta de Medicamento: ${widget.horario}',
-            body: 'Você tem ${medicationIds.length} medicamentos adiados para tomar',
-            payload: payload,
-            sound: 'malta', // 🔹 Alterado de 'alarm' para 'malta'
-            scheduledTime: newTime,
-          );
-          print('DEBUG: Notificação unificada agendada para ${medicationIds.length} medicamentos: $medicationIds');
-          
-          setState(() {
-            medications.removeWhere((m) => medicationIds.contains(m['id'].toString()));
-            _checkAndCloseIfDone();
-          });
-        } catch (e) {
-          print('DEBUG: Erro ao agendar notificação unificada: $e');
-        }
-      }
-
-      _pendingDelays.clear();
     });
   }
 
@@ -402,51 +349,14 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                                     _handleTake(index);
                                                   },
                                             child: const Text("Tomar"),
-                                          ),
+
+                                                                                    ),
                                           const SizedBox(height: 16),
                                           Row(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
-                                              Expanded(
-                                                child: ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: const Color(0xFF2196F3),
-                                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                                    textStyle: const TextStyle(fontSize: 20),
-                                                  ),
-                                                  onPressed: isTaken[index] || isSkipped[index]
-                                                      ? null
-                                                      : () {
-                                                          showDialog(
-                                                            context: context,
-                                                            barrierDismissible: false,
-                                                            builder: (context) => Center(
-                                                              child: Container(
-                                                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                                                decoration: BoxDecoration(
-                                                                  color: const Color(0xFF006994),
-                                                                  borderRadius: BorderRadius.circular(8),
-                                                                ),
-                                                                child: Text(
-                                                                  'Medicamento ${med['nome']} adiado para daqui 15 minutos',
-                                                                  style: TextStyle(color: Colors.white, fontSize: 20),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          );
-                                                          Future.delayed(const Duration(seconds: 5), () {
-                                                            if (Navigator.of(context).canPop()) {
-                                                              Navigator.of(context).pop();
-                                                            }
-                                                          });
-                                                          _handleDelay(index, context);
-                                                        },
-                                                  child: const Text("Adiar"),
-                                                ),
-                                              ),
                                               const SizedBox(width: 16),
-                                              Expanded(
-                                                child: ElevatedButton(
+                                              Expanded(      child: ElevatedButton(
                                                   style: ElevatedButton.styleFrom(
                                                     backgroundColor: isSkipped[index] ? Colors.grey : Colors.red,
                                                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
