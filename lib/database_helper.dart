@@ -32,8 +32,7 @@ class DatabaseHelper {
               startDate TEXT,
               isContinuous INTEGER,
               foto_embalagem TEXT,
-              skip_count INTEGER,
-              cuidador_id TEXT
+              skip_count INTEGER,              
             )
           ''');
           await db.execute('''
@@ -72,17 +71,17 @@ class DatabaseHelper {
                 isContinuous INTEGER,
                 foto_embalagem TEXT,
                 skip_count INTEGER,
-                cuidador_id TEXT
+                
               )
             ''');
             await db.execute('''
               INSERT INTO medications (
                 id, nome, quantidade, dosagem_diaria, tipo_medicamento, frequencia,
-                horarios, startDate, isContinuous, foto_embalagem, skip_count, cuidador_id
+                horarios, startDate, isContinuous, foto_embalagem, skip_count
               )
               SELECT id, nome, COALESCE(quantidade, 0), COALESCE(dosagem_diaria, 0),
                      tipo_medicamento, frequencia, horarios, startDate, isContinuous,
-                     foto_embalagem, skip_count, cuidador_id
+                     foto_embalagem, skip_count
               FROM medications_old
             ''');
             await db.execute('DROP TABLE medications_old');

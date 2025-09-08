@@ -82,6 +82,16 @@
         <service
             android:name="dev.fluttercommunity.plus.androidalarmmanager.AlarmService"
             android:exported="false"/>
+
+        <receiver
+            android:name=".SnoozeActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.claudinei.medialerta.SNOOZE_ACTION"/>
+                <action android:name="com.claudinei.medialerta.SHOW_NOTIFICATION" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
     <queries>

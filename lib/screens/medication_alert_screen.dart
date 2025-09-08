@@ -95,7 +95,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
 
         result = await params.database.query(
           'medications',
-          columns: ['id', 'nome', 'quantidade', 'dosagem_diaria', 'horarios', 'foto_embalagem', 'cuidador_id', 'skip_count'],
+          columns: ['id', 'nome', 'quantidade', 'dosagem_diaria', 'horarios', 'foto_embalagem', 'skip_count'],
           where: 'id IN (${intMedicationIds.map((_) => '?').join(',')})',
           whereArgs: intMedicationIds,
         );
@@ -192,7 +192,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
 
   
 
-  Future<void> _handleSkip(int index) async {
+/*  Future<void> _handleSkip(int index) async {
     final medication = Map<String, dynamic>.from(medications[index]);
     final skipCount = (medication['skip_count'] as int) + 1;
     await widget.database.update(
@@ -222,7 +222,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
       isSkipped[index] = true;
       _checkAndCloseIfDone();
     });
-  }
+  } */
 
   @override
   Widget build(BuildContext context) {
@@ -386,8 +386,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                                               if (Navigator.of(context).canPop()) {
                                                                 Navigator.of(context).pop();
                                                               }
-                                                            });
-                                                            _handleSkip(index);
+                                                            });                                                            
                                                           },
                                                   child: const Text("Pular"),
                                                 ),
