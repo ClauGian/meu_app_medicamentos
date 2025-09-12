@@ -354,6 +354,20 @@ class NotificationService {
           sound: sound,
         );
         print('DEBUG: Notificação reagendada para 15 minutos depois: $newScheduledTime, Payload: $newPayload');
+
+        // 🔹 Mostrar Snackbar confirmando o adiamento (aparece quando app voltar ao foreground)
+        if (NotificationService.navigatorKey.currentContext != null) {
+          ScaffoldMessenger.of(NotificationService.navigatorKey.currentContext!).showSnackBar(
+            const SnackBar(
+              content: Text('Adiado por 15 minutos'),
+              duration: Duration(seconds: 3),
+              behavior: SnackBarBehavior.floating, // Opcional: flutuante para melhor visibilidade
+            ),
+          );
+          print('DEBUG: Snackbar de adiamento exibido');
+        } else {
+          print('DEBUG: Context não disponível para Snackbar de adiamento');
+        }
       }
       // 🔹 Clique genérico → cancelar notificação, sem navegação
       else {
