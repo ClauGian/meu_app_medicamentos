@@ -200,8 +200,8 @@ class NotificationService {
       if (androidPlugin != null) {
         // Deletar canais antigos para evitar cache
         await androidPlugin.deleteNotificationChannel('medication_channel');
-        await androidPlugin.deleteNotificationChannel('medication_channel_v2');
-        print('DEBUG: Canais de notificação medication_channel e medication_channel_v2 deletados para recriação');
+        await androidPlugin.deleteNotificationChannel('medication_channel_v3');
+        print('DEBUG: Canais de notificação medication_channel e medication_channel_v3 deletados para recriação');
 
         // Criar grupo de canais
         await androidPlugin.createNotificationChannelGroup(
@@ -215,7 +215,7 @@ class NotificationService {
         // Criar novo canal com som nativo
         await androidPlugin.createNotificationChannel(
           const AndroidNotificationChannel(
-            'medication_channel_v2',
+            'medication_channel_v3',
             'Lembrete de Medicamento',
             description: 'Canal para lembretes de medicamentos com som nativo',
             importance: Importance.max,
@@ -228,7 +228,7 @@ class NotificationService {
             groupId: 'medication_group',
           ),
         );
-        print('DEBUG: Canal de notificação medication_channel_v2 recriado com som nativo');
+        print('DEBUG: Canal de notificação medication_channel_v3 recriado com som nativo');
       } else {
         print('DEBUG: ERRO: AndroidFlutterLocalNotificationsPlugin não disponível');
       }
@@ -270,6 +270,7 @@ class NotificationService {
 
   static Future<void> handleNotificationResponse(NotificationResponse response) async {
     print('DEBUG: Iniciando handleNotificationResponse - ID: ${response.id}, Payload: ${response.payload}, Action: ${response.actionId ?? "Nenhum actionId recebido"}');
+    print('DEBUG: Verificando se stopAlarmSound será chamado');
     print('DEBUG: Todas as propriedades do response: id=${response.id}, payload=${response.payload}, actionId=${response.actionId}, notificationResponseType=${response.notificationResponseType}');
 
     if (_audioPlayer == null) {
@@ -434,53 +435,106 @@ class NotificationService {
 
 
   Future<void> showNotification({
-      required int id,
-      required String title,
-      required String body,
-      required String sound,
-      required String payload,
+    required int id,
+    required String title,
+    required String body,
+    required String sound,
+    required String payload,
   }) async {
-      print('DEBUG: Iniciando showNotification with id: $id, title: $title, sound: $sound, payload: $payload');
-      try {
-          await MethodChannel('com.claudinei.medialerta/notification').invokeMethod(
-              'showNotification',
-              {
-                  'id': id,
-                  'title': title,
-                  'body': body,
-                  'sound': sound,
-                  'payload': payload,
-              },
-          );
-          print('DEBUG: Notificação enviada para o Android via MethodChannel');
-      } catch (e, stackTrace) {
-          print('DEBUG: Erro ao exibir notificação via MethodChannel: $e');
-          print('DEBUG: StackTrace: $stackTrace');
-      }
-  }
+    print('DEBUG: Iniciando showNotification with id: $id, title: $title, sound: $sound, payload: $payload');
 
+    // Configuração do som para Android
+    final String soundFile = sound.isEmpty ? 'malta' : sound; // Fallback para som padrão
+    print('DEBUG: Configurando som nativo: $soundFile');
+
+    // Detalhes da notificação para Android
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'medication_channel_v3',
+      'MediAlerta Notifications',
+      channelDescription: 'Notificações para lembretes de medicamentos',
+      importance: Importance.max,
+      priority: Priority.high,
+      sound: RawResourceAndroidNotificationSound(soundFile),
+      playSound: true,
+      enableVibration: true,
+      category: AndroidNotificationCategory.alarm,
+      fullScreenIntent: true,
+      actions: [
+        AndroidNotificationAction(
+          'view_action',
+          'Ver',
+          showsUserInterface: true,
+        ),
+        AndroidNotificationAction(
+          'snooze_action',
+          'Adiar',
+          showsUserInterface: false,
+        ),
+      ],
+    );
+
+    // Detalhes gerais da notificação
+    final NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+    );
+
+    try {
+      // Não chamar playAlarmSound para evitar conflitos
+      print('DEBUG: Exibindo notificação sem chamar playAlarmSound');
+      await _notificationsPlugin.show(
+        id,
+        title,
+        body,
+        notificationDetails,
+        payload: payload,
+      );
+      print('DEBUG: Notificação exibida com sucesso via flutter_local_notifications');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro ao exibir notificação: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+    }
+  }
 
 
 
   Future<void> playAlarmSound(String sound) async {
     try {
       print('DEBUG: Iniciando playAlarmSound para som: $sound');
+
+      // Inicializar AudioPlayer se necessário
       if (_audioPlayer == null) {
         _audioPlayer = AudioPlayer();
         print('DEBUG: AudioPlayer inicializado em playAlarmSound');
-      } else {
-        print('DEBUG: AudioPlayer já existe, estado atual: ${_audioPlayer!.playing}');
-        await _audioPlayer!.stop(); // Parar qualquer reprodução anterior
       }
 
-      // Configurar asset e loop infinito
-      await _audioPlayer!.setAsset('assets/sounds/$sound.mp3');
-      await _audioPlayer!.setLoopMode(LoopMode.all);
-      await _audioPlayer!.setVolume(1.0);
+      // Parar qualquer reprodução anterior
+      if (_audioPlayer!.playing) {
+        await _audioPlayer!.stop();
+        print('DEBUG: Reprodução anterior parada');
+      }
 
+      // Configurar o canal de áudio para STREAM_ALARM no Android
+      try {
+        await _deviceChannel.invokeMethod('setAudioModeToAlarm');
+        print('DEBUG: Modo de áudio configurado para STREAM_ALARM');
+      } catch (e) {
+        print('DEBUG: Erro ao configurar modo de áudio: $e');
+      }
+
+      // Configurar o asset do som
+      final String soundFile = sound.isEmpty ? 'malta' : sound;
+      final String assetPath = 'assets/sounds/$soundFile.mp3';
+      print('DEBUG: Configurando asset: $assetPath');
+      await _audioPlayer!.setAsset(assetPath);
+
+      // Configurar volume máximo e loop
+      await _audioPlayer!.setVolume(1.0);
+      await _audioPlayer!.setLoopMode(LoopMode.all);
+
+      // Iniciar reprodução
       print('DEBUG: Iniciando reprodução do som');
       await _audioPlayer!.play();
-      print('DEBUG: Som $sound iniciado em loop, estado do player: ${_audioPlayer!.playing}');
+      print('DEBUG: Som $soundFile iniciado em loop, estado do player: ${_audioPlayer!.playing}');
     } catch (e, stackTrace) {
       print('DEBUG: Erro em playAlarmSound para $sound: $e');
       print('DEBUG: StackTrace: $stackTrace');

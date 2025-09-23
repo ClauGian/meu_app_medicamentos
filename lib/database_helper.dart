@@ -32,7 +32,7 @@ class DatabaseHelper {
               startDate TEXT,
               isContinuous INTEGER,
               foto_embalagem TEXT,
-              skip_count INTEGER,              
+              skip_count INTEGER              
             )
           ''');
           await db.execute('''

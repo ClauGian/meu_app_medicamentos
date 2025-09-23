@@ -11,6 +11,7 @@ import android.content.IntentFilter
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -58,6 +59,45 @@ class MainActivity : FlutterActivity() {
         GeneratedPluginRegistrant.registerWith(flutterEngine)
         FlutterEngineCache.getInstance().put("main", flutterEngine)
         Log.d("MediAlerta", "configureFlutterEngine iniciado, flutterEngine=$flutterEngine")
+
+        // ✅ REGISTRO DO BROADCASTRECEIVER - UMA VEZ SÓ, FORA DE QUALQUER METHODCHANNEL
+        notificationActionReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == "com.claudinei.medialerta.NOTIFICATION_ACTION") {
+                    val notificationId = intent.getIntExtra("notificationId", -1)
+                    val payload = intent.getStringExtra("payload")
+                    val actionId = intent.getStringExtra("actionId")
+                    Log.d("MediAlerta", "✅ BroadcastReceiver: Recebido NOTIFICATION_ACTION - id: $notificationId, payload: $payload, actionId: $actionId")
+                    
+                    // ✅ VERIFICA SE O FLUTTER ENGINE ESTÁ DISPONÍVEL
+                    flutterEngine?.let {
+                        try {
+                            MethodChannel(it.dartExecutor.binaryMessenger, ACTION_CHANNEL).invokeMethod(
+                                "handleNotificationAction",
+                                mapOf(
+                                    "id" to notificationId,
+                                    "payload" to payload,
+                                    "actionId" to actionId
+                                )
+                            )
+                            Log.d("MediAlerta", "✅ Método handleNotificationAction invocado com sucesso")
+                        } catch (e: Exception) {
+                            Log.e("MediAlerta", "❌ Erro ao invocar handleNotificationAction: ${e.message}", e)
+                        }
+                    } ?: run {
+                        Log.w("MediAlerta", "⚠️ FlutterEngine não disponível para processar NOTIFICATION_ACTION")
+                    }
+                }
+            }
+        }
+        
+        // ✅ REGISTRA O RECEIVER UMA VEZ SÓ
+        try {
+            registerReceiver(notificationActionReceiver, IntentFilter("com.claudinei.medialerta.NOTIFICATION_ACTION"))
+            Log.d("MediAlerta", "✅ BroadcastReceiver registrado para NOTIFICATION_ACTION")
+        } catch (e: Exception) {
+            Log.e("MediAlerta", "❌ Erro ao registrar BroadcastReceiver: ${e.message}", e)
+        }
 
         // REGISTRO IMEDIATO DO CANAL DE NAVEGAÇÃO (com when para getInitialRoute e openMedicationAlert)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL).setMethodCallHandler { call, result ->
@@ -147,7 +187,7 @@ class MainActivity : FlutterActivity() {
         // Criar canal de notificação (corrigido: vibração simples para parar som rápido)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "medication_channel_v2",
+                "medication_channel_v3",
                 "Lembrete de Medicamento",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
@@ -155,26 +195,29 @@ class MainActivity : FlutterActivity() {
                 enableLights(true)
                 lightColor = Color.BLUE
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 1000)  // Corrigido: Vibração simples (uma vez só, para parar rápido)
+                vibrationPattern = longArrayOf(0, 1000)
                 setSound(
                     Uri.parse("android.resource://${packageName}/raw/malta"),
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED) // Forçar som mesmo em modo silencioso
                         .build()
                 )
+                setBypassDnd(true) // Ignorar modo "Não Perturbe"
+                setShowBadge(true)
+                Log.d("MediAlerta", "Canal de notificação medication_channel_v3 configurado com som malta e USAGE_ALARM")
             }
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
-            Log.d("MediAlerta", "Canal de notificação medication_channel_v2 criado")
+            Log.d("MediAlerta", "Canal de notificação medication_channel_v3 criado")
         }
 
-        // Handler para "com.claudinei.medialerta/notification" (seu código completo corrigido, com BroadcastReceiver fora do when)
+        // ✅ METHODCHANNEL DE NOTIFICAÇÃO - SEM BroadcastReceiver aqui!
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.claudinei.medialerta/notification").setMethodCallHandler { call, result ->
             Log.d("MediAlerta", "MethodChannel com.claudinei.medialerta/notification chamado: method=${call.method}, arguments=${call.arguments}")
             when (call.method) {
                 "createSnoozePendingIntent" -> {
-                    // ... (seu código original aqui, sem alterações)
                     val notificationId = call.argument<Int>("notificationId") ?: -1
                     val payload = call.argument<String>("payload")
                     Log.d("MediAlerta", "createSnoozePendingIntent chamado - notificationId: $notificationId, payload: $payload")
@@ -199,7 +242,6 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "showNotification" -> {
-                    // ... (seu código original com .setOnlyAlertOnce(true) e vibração corrigida)
                     val id = call.argument<Int>("id") ?: -1
                     val title = call.argument<String>("title") ?: "Hora do Medicamento"
                     val body = call.argument<String>("body") ?: "Toque para ver os medicamentos"
@@ -208,6 +250,24 @@ class MainActivity : FlutterActivity() {
                     Log.d("MediAlerta", "showNotification chamado - id: $id, title: $title, body: $body, sound: $sound, payload: $payload")
 
                     try {
+                        // Verificar se o arquivo de som existe
+                        val soundUri = Uri.parse("android.resource://${context.packageName}/raw/$sound")
+                        try {
+                            context.contentResolver.openInputStream(soundUri)?.close()
+                            Log.d("MediAlerta", "Arquivo de som $sound encontrado em raw")
+                        } catch (e: Exception) {
+                            Log.e("MediAlerta", "Arquivo de som $sound não encontrado em raw: ${e.message}")
+                        }
+
+                        // Configurar o volume do canal STREAM_ALARM
+                        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        audioManager.setStreamVolume(
+                            AudioManager.STREAM_ALARM,
+                            audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM),
+                            0
+                        )
+                        Log.d("MediAlerta", "Volume configurado para STREAM_ALARM com volume máximo")
+
                         // Criar PendingIntent para view_action
                         val viewIntent = Intent(context, MainActivity::class.java).apply {
                             action = "com.claudinei.medialerta.VIEW_ACTION"
@@ -240,19 +300,19 @@ class MainActivity : FlutterActivity() {
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                         )
 
-                        // Criar notificação (com correções para som parar rápido)
-                        val notification = NotificationCompat.Builder(context, "medication_channel_v2")
+                        // Criar notificação
+                        val notification = NotificationCompat.Builder(context, "medication_channel_v3")
                             .setContentTitle(title)
                             .setContentText(body)
                             .setSmallIcon(R.mipmap.ic_launcher)
                             .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher))
                             .setPriority(NotificationCompat.PRIORITY_MAX)
-                            .setSound(Uri.parse("android.resource://${context.packageName}/raw/$sound"))
-                            .setVibrate(longArrayOf(0, 1000))  // Vibração simples
+                            .setSound(soundUri, AudioManager.STREAM_ALARM)
+                            .setVibrate(longArrayOf(0, 1000))
                             .setLights(Color.BLUE, 1000, 500)
                             .setAutoCancel(false)
                             .setOngoing(true)
-                            .setOnlyAlertOnce(true)  // Som toca só uma vez
+                            .setOnlyAlertOnce(false) // Permitir som em cada exibição
                             .setCategory(NotificationCompat.CATEGORY_ALARM)
                             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -264,15 +324,14 @@ class MainActivity : FlutterActivity() {
                         // Exibir notificação
                         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                         notificationManager.notify(id, notification)
-                        Log.d("MediAlerta", "Notificação exibida com sucesso no Android - id: $id")
+                        Log.d("MediAlerta", "✅ Notificação exibida com sucesso no Android - id: $id")
                         result.success(true)
                     } catch (e: Exception) {
-                        Log.e("MediAlerta", "Erro ao exibir notificação: ${e.message}", e)
+                        Log.e("MediAlerta", "❌ Erro ao exibir notificação: ${e.message}", e)
                         result.error("NOTIFICATION_ERROR", "Falha ao exibir notificação: ${e.message}", null)
                     }
                 }
                 "scheduleNotification" -> {
-                    // ... (seu código original aqui, sem alterações)
                     val id = call.argument<Int>("id") ?: -1
                     val title = call.argument<String>("title") ?: "Hora do Medicamento"
                     val body = call.argument<String>("body") ?: "Toque para ver os medicamentos"
@@ -311,42 +370,22 @@ class MainActivity : FlutterActivity() {
                                 pendingIntent
                             )
                         }
-                        Log.d("MediAlerta", "Notificação agendada com sucesso para $scheduledTime - id: $id")
+                        Log.d("MediAlerta", "✅ Notificação agendada com sucesso para $scheduledTime - id: $id")
                         result.success(true)
                     } catch (e: Exception) {
-                        Log.e("MediAlerta", "Erro ao agendar notificação: ${e.message}", e)
+                        Log.e("MediAlerta", "❌ Erro ao agendar notificação: ${e.message}", e)
                         result.error("SCHEDULE_ERROR", "Falha ao agendar notificação: ${e.message}", null)
                     }
                 }
                 else -> result.notImplemented()
             }
-
-            // Registrar BroadcastReceiver para ações de notificação (fora do when)
-            notificationActionReceiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context, intent: Intent) {
-                    if (intent.action == "com.claudinei.medialerta.NOTIFICATION_ACTION") {
-                        val notificationId = intent.getIntExtra("notificationId", -1)
-                        val payload = intent.getStringExtra("payload")
-                        val actionId = intent.getStringExtra("actionId")
-                        Log.d("MediAlerta", "BroadcastReceiver: Recebido NOTIFICATION_ACTION - id: $notificationId, payload: $payload, actionId: $actionId")
-                        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.claudinei.medialerta/notification_actions").invokeMethod(
-                            "handleNotificationAction",
-                            mapOf(
-                                "id" to notificationId,
-                                "payload" to payload,
-                                "actionId" to actionId
-                            )
-                        )
-                    }
-                }
-            }
-            context.registerReceiver(notificationActionReceiver, IntentFilter("com.claudinei.medialerta.NOTIFICATION_ACTION"))
+            // ✅ NÃO HÁ MAIS BroadcastReceiver aqui - já foi registrado acima!
         }
+        Log.d("MediAlerta", "Canal de notificação registrado com sucesso")
 
         // Placeholder para FULLSCREEN_CHANNEL (seu código original)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FULLSCREEN_CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "showFullScreenAlarm") {
-                // ... (seu código original para FullScreenAlarmActivity)
                 val args = call.arguments as? Map<String, Any>
                 val horario = args?.get("horario") as? String
                 val medicationIds = args?.get("medicationIds") as? ArrayList<String>
@@ -380,7 +419,67 @@ class MainActivity : FlutterActivity() {
             Log.d("MediAlerta", "MethodChannel $ACTION_CHANNEL chamado: method=${call.method}, arguments=${call.arguments}")
             result.notImplemented()
         }
-    }  // <-- Fechamento do configureFlutterEngine (adicionado)
+        
+        Log.d("MediAlerta", "✅ configureFlutterEngine finalizado - todos os canais registrados") // <-- Fechamento do configureFlutterEngine
+ 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isInDozeMode" -> {
+                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                    val isInDoze = powerManager.isDeviceIdleMode
+                    Log.d("MediAlerta", "isInDozeMode chamado, resultado: $isInDoze")
+                    result.success(isInDoze)
+                }
+                "isIgnoringBatteryOptimizations" -> {
+                    val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                    val packageName = packageName
+                    val isIgnoring = powerManager.isIgnoringBatteryOptimizations(packageName)
+                    Log.d("MediAlerta", "isIgnoringBatteryOptimizations chamado, resultado: $isIgnoring")
+                    result.success(isIgnoring)
+                }
+                "requestBatteryOptimizationsExemption" -> {
+                    try {
+                        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+                        val packageName = packageName
+                        if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:$packageName")
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            Log.d("MediAlerta", "Solicitação de isenção de otimizações de bateria iniciada")
+                            result.success(true)
+                        } else {
+                            Log.d("MediAlerta", "Isenção de otimizações de bateria já concedida")
+                            result.success(true)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("MediAlerta", "Erro ao solicitar isenção de otimizações de bateria: ${e.message}", e)
+                        result.error("BATTERY_OPTIMIZATION_ERROR", "Falha ao solicitar isenção: ${e.message}", null)
+                    }
+                }
+                "setAudioModeToAlarm" -> {
+                    try {
+                        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        audioManager.setStreamVolume(
+                            AudioManager.STREAM_ALARM,
+                            audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM),
+                            0
+                        )
+                        Log.d("MediAlerta", "Volume configurado para STREAM_ALARM com volume máximo")
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.e("MediAlerta", "Erro ao configurar volume para STREAM_ALARM: ${e.message}", e)
+                        result.error("AUDIO_ERROR", "Falha ao configurar volume: ${e.message}", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        Log.d("MediAlerta", "Canal device registrado com sucesso")
+    }
+
+
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -500,5 +599,4 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
-
 }
