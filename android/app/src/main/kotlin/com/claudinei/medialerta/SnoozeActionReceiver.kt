@@ -12,6 +12,13 @@ import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import android.media.AudioManager
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.StyleSpan
+import android.text.style.ForegroundColorSpan
+import android.graphics.Typeface
+import android.widget.RemoteViews
 
 class SnoozeActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -97,7 +104,7 @@ class SnoozeActionReceiver : BroadcastReceiver() {
                         notificationManager.cancel(notificationId)
                         Log.d("MediAlerta", "✅ Notificação cancelada - id: $notificationId")
 
-                        // ✅ MELHORIA: Cancelar PendingIntent existente com flag correta
+                        // Cancelar PendingIntent existente
                         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                         val existingIntent = Intent(context, SnoozeActionReceiver::class.java).apply {
                             action = "com.claudinei.medialerta.SHOW_NOTIFICATION"
@@ -115,9 +122,31 @@ class SnoozeActionReceiver : BroadcastReceiver() {
                             Log.d("MediAlerta", "✅ PendingIntent anterior cancelado - id: $notificationId")
                         }
 
-                        // ✅ CORREÇÃO: 15 minutos reais (não 15 segundos!)
+                        // Criar notificação temporária de 10 segundos
+                        val text = "Medicamento adiado por 15 minutos"
+                        val snoozeNotification = NotificationCompat.Builder(context, "silent_medication_channel")
+                            .setSmallIcon(R.mipmap.ic_launcher) // Obrigatório, usado na barra de notificações
+                            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)) // Ícone grande para aumentar o layout
+                            .setContentText(text) // Texto base
+                            .setPriority(NotificationCompat.PRIORITY_HIGH)
+                            .setSound(null)
+                            .setVibrate(null)
+                            .setAutoCancel(true)
+                            .setTimeoutAfter(10000)
+                            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                            .setStyle(NotificationCompat.BigTextStyle()
+                                .bigText(text)
+                                .setBigContentTitle(null)
+                                .setSummaryText(null))
+                            .setFullScreenIntent(createViewPendingIntent(context, notificationId, payload), true)
+                            .build()
+
+                        // Exibir notificação temporária
+                        notificationManager.notify(notificationId + 5000, snoozeNotification)
+                        Log.d("MediAlerta", "✅ Notificação temporária exibida - id: ${notificationId + 5000}")
+                        // Agendar nova notificação para 15 minutos
                         val newScheduledTime = System.currentTimeMillis() + 15 * 1000 // 15 segundos
-                        //val newScheduledTime = System.currentTimeMillis() + 15 * 60 * 1000L // 15 minutos
                         val newIntent = Intent(context, SnoozeActionReceiver::class.java).apply {
                             action = "com.claudinei.medialerta.SHOW_NOTIFICATION"
                             putExtra("notificationId", notificationId)
@@ -133,7 +162,7 @@ class SnoozeActionReceiver : BroadcastReceiver() {
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                         )
 
-                        // Agendar com AlarmManager (já correto para MIUI)
+                        // Agendar com AlarmManager
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                             alarmManager.setExactAndAllowWhileIdle(
                                 AlarmManager.RTC_WAKEUP,
@@ -149,7 +178,7 @@ class SnoozeActionReceiver : BroadcastReceiver() {
                         }
                         Log.d("MediAlerta", "✅ Nova notificação agendada para ${java.text.SimpleDateFormat("HH:mm:ss").format(newScheduledTime)} - id: $notificationId")
 
-                        // ✅ MELHORIA: Broadcast para Flutter (mas precisa do receiver correto)
+                        // Broadcast para Flutter
                         val broadcastIntent = Intent("com.claudinei.medialerta.NOTIFICATION_ACTION").apply {
                             putExtra("notificationId", notificationId)
                             putExtra("payload", payload)

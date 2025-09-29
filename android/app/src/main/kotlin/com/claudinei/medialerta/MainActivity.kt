@@ -50,9 +50,10 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun createNotificationChannel() {
-        // Canal v2 já criado no configureFlutterEngine; v3 removido para evitar duplicata
-        Log.d("MediAlerta", "createNotificationChannel chamado - v2 já configurado")
+        // Canais agora criados no configureFlutterEngine
+        Log.d("MediAlerta", "createNotificationChannel chamado - canais configurados no configureFlutterEngine")
     }
+
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -184,8 +185,11 @@ class MainActivity : FlutterActivity() {
         }
         Log.d("MediAlerta", "Canal device registrado com sucesso")
 
-        // Criar canal de notificação (corrigido: vibração simples para parar som rápido)
+        // Criar canais de notificação
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            // Canal para notificações com som
             val channel = NotificationChannel(
                 "medication_channel_v3",
                 "Lembrete de Medicamento",
@@ -201,16 +205,33 @@ class MainActivity : FlutterActivity() {
                     AudioAttributes.Builder()
                         .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                         .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED) // Forçar som mesmo em modo silencioso
+                        .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                         .build()
                 )
-                setBypassDnd(true) // Ignorar modo "Não Perturbe"
+                setBypassDnd(true)
                 setShowBadge(true)
                 Log.d("MediAlerta", "Canal de notificação medication_channel_v3 configurado com som malta e USAGE_ALARM")
             }
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
-            Log.d("MediAlerta", "Canal de notificação medication_channel_v3 criado")
+
+            // Novo canal para notificações silenciosas
+            val silentChannel = NotificationChannel(
+                "silent_medication_channel",
+                "Silent Medication Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Canal para notificações silenciosas de adiamento"
+                enableLights(true)
+                lightColor = Color.BLUE
+                enableVibration(false)
+                setSound(null, null)
+                setBypassDnd(true)
+                setShowBadge(true)
+                Log.d("MediAlerta", "Canal de notificação silent_medication_channel configurado sem som e sem vibração")
+            }
+            notificationManager.createNotificationChannel(silentChannel)
+
+            Log.d("MediAlerta", "✅ Canais de notificação criados")
         }
 
         // ✅ METHODCHANNEL DE NOTIFICAÇÃO - SEM BroadcastReceiver aqui!
@@ -502,6 +523,8 @@ class MainActivity : FlutterActivity() {
             Log.e("MediAlerta", "Erro ao unregister receiver: ${e.message}", e)
         }
     }
+
+
 
     private fun handleIntent(intent: Intent?) {
         val route = intent?.getStringExtra("route")

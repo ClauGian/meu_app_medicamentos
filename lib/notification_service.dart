@@ -355,20 +355,6 @@ class NotificationService {
           sound: sound,
         );
         print('DEBUG: Notificação reagendada para 15 minutos depois: $newScheduledTime, Payload: $newPayload');
-
-        // 🔹 Mostrar Snackbar confirmando o adiamento (aparece quando app voltar ao foreground)
-        if (NotificationService.navigatorKey.currentContext != null) {
-          ScaffoldMessenger.of(NotificationService.navigatorKey.currentContext!).showSnackBar(
-            const SnackBar(
-              content: Text('Adiado por 15 minutos'),
-              duration: Duration(seconds: 3),
-              behavior: SnackBarBehavior.floating, // Opcional: flutuante para melhor visibilidade
-            ),
-          );
-          print('DEBUG: Snackbar de adiamento exibido');
-        } else {
-          print('DEBUG: Context não disponível para Snackbar de adiamento');
-        }
       }
       // 🔹 Clique genérico → cancelar notificação, sem navegação
       else {
@@ -380,6 +366,7 @@ class NotificationService {
       print('DEBUG: StackTrace: $stackTrace');
     }
   }
+
 
 
 
@@ -544,9 +531,10 @@ class NotificationService {
 
 
   Future<void> initializeNotificationListeners() async {
-    // 🔹 Configurar MethodChannel para ações
+    print('DEBUG: initializeNotificationListeners chamado');
     _actionChannel.setMethodCallHandler((call) async {
       print('DEBUG: MethodChannel chamado: method=${call.method}, arguments=${call.arguments}');
+      print('DEBUG: Entrou no handler do _actionChannel');
       if (call.method == 'handleNotificationAction') {
         final id = call.arguments['id'] as int?;
         final payload = call.arguments['payload'] as String?;
@@ -616,6 +604,7 @@ class NotificationService {
       print('DEBUG: StackTrace: $stackTrace');
     }
   }
+
 
 
   Future<void> stopAlarmSound() async {

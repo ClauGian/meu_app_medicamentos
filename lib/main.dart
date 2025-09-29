@@ -80,11 +80,12 @@ class _MyAppState extends State<MyApp> {
       if (call.method == 'navigateToMedicationAlert') {
         final args = call.arguments as Map;
         print('DEBUG: Navegando para MedicationAlertScreen via MethodChannel com args=$args');
-        routeDataNotifier.value = args.cast<String, dynamic>();
+        routeDataNotifier.value = args.cast<String, dynamic>();        
       }
       return null;
     });
   }
+
 
 
 
