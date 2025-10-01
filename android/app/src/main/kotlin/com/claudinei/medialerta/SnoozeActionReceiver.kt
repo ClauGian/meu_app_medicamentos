@@ -78,7 +78,7 @@ class SnoozeActionReceiver : BroadcastReceiver() {
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                         .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                         .addAction(0, "Ver", createViewPendingIntent(context, notificationId, payload))
-                        .addAction(0, "Adiar 15 minutos", createSnoozePendingIntent(context, notificationId, payload, title, body, sound))
+                        .addAction(0, "Adiar", createSnoozePendingIntent(context, notificationId, payload, title, body, sound))
                         .setFullScreenIntent(createViewPendingIntent(context, notificationId, payload), true)
                         .build()
 
@@ -122,29 +122,30 @@ class SnoozeActionReceiver : BroadcastReceiver() {
                             Log.d("MediAlerta", "✅ PendingIntent anterior cancelado - id: $notificationId")
                         }
 
+
                         // Criar notificação temporária de 10 segundos
-                        val text = "Medicamento adiado por 15 minutos"
+                        val remoteViews = RemoteViews(context.packageName, R.layout.notification_custom)
+                        remoteViews.setTextViewText(R.id.notification_text_line1, "Medicamento")
+                        remoteViews.setTextViewText(R.id.notification_text_line2, "Adiado por 15 minutos")
+                        Log.d("MediAlerta", "Configurando texto no RemoteViews: Medicamento / Adiado por 15 minutos")
+
                         val snoozeNotification = NotificationCompat.Builder(context, "silent_medication_channel")
-                            .setSmallIcon(R.mipmap.ic_launcher) // Obrigatório, usado na barra de notificações
-                            .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)) // Ícone grande para aumentar o layout
-                            .setContentText(text) // Texto base
+                            .setSmallIcon(R.mipmap.ic_launcher)
+                            .setCustomContentView(remoteViews)
                             .setPriority(NotificationCompat.PRIORITY_HIGH)
                             .setSound(null)
                             .setVibrate(null)
                             .setAutoCancel(true)
                             .setTimeoutAfter(10000)
-                            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                            .setCategory(NotificationCompat.CATEGORY_STATUS)
                             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                            .setStyle(NotificationCompat.BigTextStyle()
-                                .bigText(text)
-                                .setBigContentTitle(null)
-                                .setSummaryText(null))
-                            .setFullScreenIntent(createViewPendingIntent(context, notificationId, payload), true)
+                            .setShowWhen(true)
+                            .setOngoing(false)
                             .build()
 
-                        // Exibir notificação temporária
                         notificationManager.notify(notificationId + 5000, snoozeNotification)
-                        Log.d("MediAlerta", "✅ Notificação temporária exibida - id: ${notificationId + 5000}")
+                        Log.d("MediAlerta", "✅ Notificação temporária exibida com RemoteViews - id: ${notificationId + 5000}")
+
                         // Agendar nova notificação para 15 minutos
                         val newScheduledTime = System.currentTimeMillis() + 15 * 1000 // 15 segundos
                         val newIntent = Intent(context, SnoozeActionReceiver::class.java).apply {

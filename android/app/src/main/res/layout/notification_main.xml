@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="140dp"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="6dp"
+    android:background="#CCCCCC">
+    <ImageView
+        android:id="@+id/notification_icon"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center"
+        android:src="@mipmap/ic_launcher"
+        android:contentDescription="Ícone da notificação"
+        android:scaleType="fitCenter" />
+    <TextView
+        android:id="@+id/notification_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="22sp"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end" />
+    <TextView
+        android:id="@+id/notification_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="18sp"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:maxLines="2"
+        android:ellipsize="end" />
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+        <Button
+            android:id="@+id/button_ver"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Ver"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="#006994"
+            android:textColor="#FFFFFF"
+            android:padding="8dp" />
+        <Button
+            android:id="@+id/button_adiar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Adiar"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="#55AA55"
+            android:textColor="#FFFFFF"
+            android:padding="8dp"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+</LinearLayout>

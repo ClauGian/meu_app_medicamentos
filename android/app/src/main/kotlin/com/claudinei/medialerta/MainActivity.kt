@@ -214,11 +214,11 @@ class MainActivity : FlutterActivity() {
             }
             notificationManager.createNotificationChannel(channel)
 
-            // Novo canal para notificações silenciosas
+            //Novo canal de notificação silenciosa
             val silentChannel = NotificationChannel(
                 "silent_medication_channel",
                 "Silent Medication Alerts",
-                NotificationManager.IMPORTANCE_HIGH
+                NotificationManager.IMPORTANCE_MAX // Mudar para IMPORTANCE_MAX
             ).apply {
                 description = "Canal para notificações silenciosas de adiamento"
                 enableLights(true)
