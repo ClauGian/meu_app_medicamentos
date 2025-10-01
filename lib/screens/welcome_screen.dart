@@ -144,7 +144,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
                     await widget.notificationService.scheduleNotification(
                       id: notificationId,
-                      title: 'Alerta de Medicamento: 08:00',
+                      title: 'Alerta de Medicamento',
                       body: 'Você tem ${medicationIds.length} medicamentos para tomar',
                       payload: payload,
                       scheduledTime: DateTime.now().add(Duration(seconds: 10)),

@@ -133,7 +133,7 @@ class NotificationService {
                 print('DEBUG: Notificação reagendada para 15 minutos depois: $newTime - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
                 await scheduleNotification(
                   id: id,
-                  title: 'Alerta de Medicamento: $horario',
+                  title: 'Alerta de Medicamento',
                   body: 'Você tem ${medicationIds.length} medicamentos para tomar',
                   payload: '$horario|${medicationIds.join(',')}|$sound',
                   scheduledTime: newTime,

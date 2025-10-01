@@ -19,6 +19,9 @@ import android.text.style.StyleSpan
 import android.text.style.ForegroundColorSpan
 import android.graphics.Typeface
 import android.widget.RemoteViews
+import android.media.RingtoneManager
+import android.os.Bundle
+import java.text.SimpleDateFormat
 
 class SnoozeActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -61,24 +64,43 @@ class SnoozeActionReceiver : BroadcastReceiver() {
                     )
                     Log.d("MediAlerta", "Volume configurado para STREAM_ALARM com volume máximo")
 
-                    // Criar notificação
+                    // Criar notificação com RemoteViews
+                    val remoteViews = RemoteViews(context.packageName, R.layout.notification_main)
+
+                    // Definir textos dinamicamente aqui (não mais recebidos da WelcomeScreen)
+                    val dynamicTitle = "Alerta de Medicamento"
+
+                    // TODO: depois vamos buscar do banco de dados real
+                    val medicationCount = 3
+                    val dynamicBody = "Você tem $medicationCount medicamentos para tomar"
+
+                    // Aplicar no layout da notificação
+                    remoteViews.setTextViewText(R.id.notification_title, dynamicTitle)
+                    remoteViews.setTextViewText(R.id.notification_body, dynamicBody)
+
+                    // Configurar botões
+                    val viewIntent = createViewPendingIntent(context, notificationId, payload)
+                    remoteViews.setOnClickPendingIntent(R.id.button_ver, viewIntent)
+
+                    val snoozeIntent = createSnoozePendingIntent(context, notificationId, payload, title, body, sound)
+                    remoteViews.setOnClickPendingIntent(R.id.button_adiar, snoozeIntent)
+
                     val notification = NotificationCompat.Builder(context, "medication_channel_v3")
+                        .setSmallIcon(R.mipmap.ic_launcher)
                         .setContentTitle(title)
                         .setContentText(body)
-                        .setSmallIcon(R.mipmap.ic_launcher)
-                        .setLargeIcon(BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher))
+                        .setCustomContentView(remoteViews)
+                        .setCustomBigContentView(remoteViews)
+                        .setStyle(NotificationCompat.BigTextStyle().bigText(body))
                         .setPriority(NotificationCompat.PRIORITY_MAX)
                         .setSound(soundUri, AudioManager.STREAM_ALARM)
                         .setVibrate(longArrayOf(0, 1000))
                         .setLights(Color.BLUE, 1000, 500)
                         .setAutoCancel(false)
                         .setOngoing(true)
-                        .setOnlyAlertOnce(false) // Permitir som em cada exibição
+                        .setOnlyAlertOnce(false)
                         .setCategory(NotificationCompat.CATEGORY_ALARM)
                         .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                        .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-                        .addAction(0, "Ver", createViewPendingIntent(context, notificationId, payload))
-                        .addAction(0, "Adiar", createSnoozePendingIntent(context, notificationId, payload, title, body, sound))
                         .setFullScreenIntent(createViewPendingIntent(context, notificationId, payload), true)
                         .build()
 
