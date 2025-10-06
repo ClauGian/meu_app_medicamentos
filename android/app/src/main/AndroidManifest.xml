@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.claudinei.medialerta">
 
-    <!-- Permissões -->
+    <!-- Permissões existentes mantidas -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -23,6 +23,7 @@
         android:label="MediAlerta"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -43,6 +44,7 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+
         <activity
             android:name=".FullScreenAlarmActivity"
             android:exported="true"
@@ -55,6 +57,7 @@
                 <action android:name="android.intent.action.MAIN"/>
             </intent-filter>
         </activity>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
@@ -79,18 +82,10 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
             </intent-filter>
         </receiver>
+
         <service
             android:name="dev.fluttercommunity.plus.androidalarmmanager.AlarmService"
             android:exported="false"/>
-
-        <receiver
-            android:name=".SnoozeActionReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.claudinei.medialerta.SNOOZE_ACTION"/>
-                <action android:name="com.claudinei.medialerta.SHOW_NOTIFICATION" />
-            </intent-filter>
-        </receiver>
 
     </application>
 
@@ -100,4 +95,5 @@
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
+
 </manifest>

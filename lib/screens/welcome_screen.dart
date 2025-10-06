@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'home_screen.dart';
 import '../notification_service.dart';
+import 'package:flutter/services.dart';
+
 
 
 class WelcomeScreen extends StatefulWidget {
@@ -20,6 +22,10 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _isScheduling = false;
+
+  // Canal para chamar a FullScreen
+  static final MethodChannel _fullscreenChannel =
+  const MethodChannel('com.claudinei.medialerta/fullscreen');
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +107,62 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
               ),
               const SizedBox(height: 20),
+
+              ElevatedButton(
+                onPressed: () async {
+                  if (_isScheduling) return;
+                  _isScheduling = true;
+
+                  try {
+                    // 🔹 Cancelar notificações pendentes
+                    await widget.notificationService.cancelAllNotifications();
+                    print('DEBUG: Todas as notificações pendentes canceladas');
+
+                    // 🔹 Buscar medicamentos do banco
+                    final medications = await widget.database.query(
+                      'medications',
+                      where: 'horarios LIKE ?',
+                      whereArgs: ['%08:00%'],
+                    );
+
+                    if (medications.isEmpty) {
+                      print('DEBUG: Nenhum medicamento encontrado para 08:00');
+                      _isScheduling = false;
+                      return;
+                    }
+
+                    final medicationIds = medications.map((m) => m['id'].toString()).toList();
+                    final payload = '08:00|${medicationIds.join(',')}';
+                    print('DEBUG: Payload gerado: $payload');
+
+                    // 🔹 Chamar FullScreen via MethodChannel
+                    await _fullscreenChannel.invokeMethod('showFullScreenAlarm', {
+                      'horario': '08:00',
+                      'medicationIds': medicationIds,
+                      'payload': payload,
+                      'title': 'Hora do Medicamento',
+                      'body': 'É hora de tomar seu medicamento',
+                    });
+
+                    print('DEBUG: FullScreen chamado');
+
+                  } catch (e) {
+                    print('DEBUG: Erro ao chamar FullScreen: $e');
+                  } finally {
+                    _isScheduling = false;
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromRGBO(85, 170, 85, 1),
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                ),
+                child: const Text(
+                  "Testar FullScreen",
+                  style: TextStyle(fontSize: 24, color: Colors.white),
+                ),
+              ),
+
+
               ElevatedButton(
                 onPressed: () async {
                   if (_isScheduling) {
