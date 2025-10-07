@@ -11,6 +11,7 @@ import 'package:just_audio/just_audio.dart'; // Mantém apenas just_audio
 // ignore: unused_import
 import 'package:flutter_isolate/flutter_isolate.dart';
 
+
 final _processedNotificationIds = <int>{};
 final AudioPlayer audioPlayer = AudioPlayer();
 
@@ -26,6 +27,7 @@ class NotificationService {
 
   static const MethodChannel _navigationChannel = MethodChannel('com.claudinei.medialerta/navigation');
   static const MethodChannel _actionChannel = MethodChannel('com.claudinei.medialerta/notification_actions');
+  static const MethodChannel _fullscreenChannel = MethodChannel('com.claudinei.medialerta/fullscreen');
   final MethodChannel _deviceChannel = const MethodChannel('com.claudinei.medialerta/device');
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   Database? _database;
@@ -368,7 +370,31 @@ class NotificationService {
   }
 
 
+  Future<void> scheduleFullScreen({
+    required String horario,
+    required List<String> medicationIds,
+    String? payload,
+    String? title,
+    String? body,
+    int delaySeconds = 0,
+  }) async {
+    try {
+      await _fullscreenChannel.invokeMethod('scheduleFullScreen', {
+        'horario': horario,
+        'medicationIds': medicationIds,
+        'payload': payload,
+        'title': title,
+        'body': body,
+        'delaySeconds': delaySeconds,
+      });
+      print('DEBUG: Agendamento da FullScreen enviado via MethodChannel');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro ao agendar FullScreen: $e');
+      print(stackTrace);
+    }
+  }
 
+  
 
 
 

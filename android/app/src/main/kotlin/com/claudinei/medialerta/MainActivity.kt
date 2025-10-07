@@ -1,6 +1,10 @@
 package com.claudinei.medialerta
 
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
@@ -55,29 +59,68 @@ class MainActivity : FlutterActivity() {
 
         // Canal FullScreen
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, FULLSCREEN_CHANNEL).setMethodCallHandler { call, result ->
-            if (call.method == "showFullScreenAlarm") {
-                val args = call.arguments as? Map<String, Any>
-                val horario = args?.get("horario") as? String
-                val medicationIds = args?.get("medicationIds") as? ArrayList<String>
-                val payload = args?.get("payload") as? String
-                val title = args?.get("title") as? String
-                val body = args?.get("body") as? String
+            when (call.method) {
+                // Abrir FullScreen imediatamente
+                "showFullScreenAlarm" -> {
+                    val args = call.arguments as? Map<String, Any>
+                    val horario = args?.get("horario") as? String
+                    val medicationIds = args?.get("medicationIds") as? ArrayList<String>
+                    val payload = args?.get("payload") as? String
+                    val title = args?.get("title") as? String
+                    val body = args?.get("body") as? String
 
-                val intent = Intent(this, FullScreenAlarmActivity::class.java).apply {
-                    putExtra("horario", horario)
-                    putStringArrayListExtra("medicationIds", medicationIds)
-                    putExtra("payload", payload)
-                    putExtra("title", title)
-                    putExtra("body", body)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    val intent = Intent(this, FullScreenAlarmActivity::class.java).apply {
+                        putExtra("horario", horario)
+                        putStringArrayListExtra("medicationIds", medicationIds)
+                        putExtra("payload", payload)
+                        putExtra("title", title)
+                        putExtra("body", body)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                    startActivity(intent)
+                    result.success(true)
                 }
-                startActivity(intent)
-                result.success(true)
-            } else {
-                result.notImplemented()
+
+                // Agendar FullScreen para depois de X segundos (funciona em background)
+                "scheduleFullScreen" -> {
+                    val args = call.arguments as? Map<String, Any>
+                    val horario = args?.get("horario") as? String ?: "08:00"
+                    val medicationIds = args?.get("medicationIds") as? ArrayList<String> ?: arrayListOf()
+                    val payload = args?.get("payload") as? String
+                    val title = args?.get("title") as? String
+                    val body = args?.get("body") as? String
+                    val delaySeconds = (args?.get("delaySeconds") as? Int) ?: 0
+
+                    val alarmTime = System.currentTimeMillis() + delaySeconds * 1000L
+                    val alarmIntent = Intent(this, AlarmReceiver::class.java).apply {
+                        putExtra("horario", horario)
+                        putStringArrayListExtra("medicationIds", medicationIds)
+                        putExtra("payload", payload)
+                        putExtra("title", title)
+                        putExtra("body", body)
+                    }
+
+                    val pendingIntent = PendingIntent.getBroadcast(
+                        this,
+                        0,
+                        alarmIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+
+                    val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent)
+                    } else {
+                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, alarmTime, pendingIntent)
+                    }
+
+                    Log.d("MediAlerta", "✅ Agendamento da FullScreen feito para $delaySeconds segundos depois via BroadcastReceiver")
+                    result.success(true)
+                }
+
+                else -> result.notImplemented()
             }
         }
-
 
         Log.d("MediAlerta", "configureFlutterEngine finalizado - canais registrados")
     }

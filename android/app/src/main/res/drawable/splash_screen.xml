@@ -15,7 +15,7 @@
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/ic_launcher" /> <!-- Ícone do MediAlerta -->
+            android:src="@drawable/icone_ma_400_trans" /> <!-- Ícone do MediAlerta -->
     </item>
 
 </layer-list>
