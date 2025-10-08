@@ -44,16 +44,30 @@ class NotificationService {
 
   Future<Map<String, dynamic>?> getInitialRouteData() async {
     try {
+      // Verificar se o app foi iniciado por uma notificação
+      final didNotificationLaunchApp = await _notificationsPlugin
+          .getNotificationAppLaunchDetails()
+          .then((details) => details?.didNotificationLaunchApp ?? false);
+      print('DEBUG: Verificando notificação de inicialização do app: didNotificationLaunchApp=$didNotificationLaunchApp');
+
+      // Consultar o MethodChannel independentemente de didNotificationLaunchApp
       final Map<dynamic, dynamic>? result = await _navigationChannel.invokeMethod('getInitialRoute');
       if (result != null) {
-        return Map<String, dynamic>.from(result);
+        final routeData = Map<String, dynamic>.from(result);
+        print('DEBUG: initialRouteData obtida: $routeData');
+        // Verificar se a rota é válida
+        if (routeData['route'] == 'medication_alert') {
+          return routeData;
+        }
       }
+      print('DEBUG: Nenhum dado de rota inicial válido encontrado');
       return null;
     } on PlatformException catch (e) {
       print('DEBUG: Erro ao obter initialRouteData: ${e.message}');
       return null;
     }
   }
+
 
   Future<void> init(Database database) async {
     final int startTime = DateTime.now().millisecondsSinceEpoch;

@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -23,11 +25,22 @@ class MainActivity : FlutterActivity() {
         "payload" to null,
         "notificationId" to -1
     )
+    private var initialIntent: Intent? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("MediAlerta", "onCreate chamado, intent inicial: ${intent?.toString()}, extras: ${intent?.extras?.toString()}")
-        handleIntent(intent)
+        Log.d("MediAlerta", "onCreate chamado, intent inicial: $intent, extras: ${intent.extras}")
+
+        // Armazenar o Intent inicial
+        initialIntent = intent
+
+        // Configurar a engine e processar o intent imediatamente
+        configureFlutterEngine(flutterEngine ?: FlutterEngine(this).also {
+            FlutterEngineCache.getInstance().put("main", it)
+            Log.d("MediAlerta", "Nova FlutterEngine criada e armazenada no cache: $it")
+        })
+        handleIntent(initialIntent)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -139,6 +152,8 @@ class MainActivity : FlutterActivity() {
         val payload = intent?.getStringExtra("payload")
         val notificationId = intent?.getIntExtra("notificationId", -1)
 
+        Log.d("MediAlerta", "handleIntent chamado com route=$route, horario=$horario, medicationIds=$medicationIds, payload=$payload, notificationId=$notificationId")
+
         initialRouteData = if (route != null && horario != null && medicationIds.isNotEmpty()) {
             mapOf(
                 "route" to route,
@@ -157,9 +172,20 @@ class MainActivity : FlutterActivity() {
             )
         }
 
-        flutterEngine?.let {
-            MethodChannel(it.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL)
-                .invokeMethod("navigateToMedicationAlert", initialRouteData)
+        Log.d("MediAlerta", "initialRouteData configurado: $initialRouteData")
+
+        val engine = flutterEngine ?: run {
+            Log.w("MediAlerta", "flutterEngine é null, tentando recuperar do FlutterEngineCache")
+            FlutterEngineCache.getInstance().get("main")?.also {
+                Log.d("MediAlerta", "FlutterEngine recuperado do cache: $it")
+            } ?: run {
+                Log.e("MediAlerta", "Falha ao recuperar FlutterEngine do cache")
+                return
+            }
         }
+
+        MethodChannel(engine.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL)
+            .invokeMethod("navigateToMedicationAlert", initialRouteData)
+        Log.d("MediAlerta", "navigateToMedicationAlert invocado com initialRouteData=$initialRouteData")
     }
 }

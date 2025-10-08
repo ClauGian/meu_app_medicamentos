@@ -47,10 +47,11 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
   List<bool> isSkipped = [];
   bool isLoading = true;
 
-
   @override
   void initState() {
     super.initState();
+    widget.notificationService.stopAlarmSound(); // Parar o som do alarme
+    print('DEBUG: stopAlarmSound chamado ao iniciar MedicationAlertScreen');
     _fetchMedications();
   }
 
