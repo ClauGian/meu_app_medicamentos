@@ -4,8 +4,6 @@ import 'package:sqflite/sqflite.dart' as sqflite;
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/medication_alert_screen.dart';
-import 'screens/daily_alerts_screen.dart';
-import 'screens/home_screen.dart';
 import 'notification_service.dart';
 import 'database_helper.dart';
 

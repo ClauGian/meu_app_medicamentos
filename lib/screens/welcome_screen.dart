@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'home_screen.dart';
 import '../notification_service.dart';
-import 'package:flutter/services.dart';
-
 
 
 class WelcomeScreen extends StatefulWidget {
@@ -24,8 +22,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _isScheduling = false;
 
   // Canal para chamar a FullScreen
-  static final MethodChannel _fullscreenChannel =
-  const MethodChannel('com.claudinei.medialerta/fullscreen');
+  //static final MethodChannel _fullscreenChannel =
+  //const MethodChannel('com.claudinei.medialerta/fullscreen');
 
   @override
   Widget build(BuildContext context) {
