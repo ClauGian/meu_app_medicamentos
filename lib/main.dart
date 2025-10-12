@@ -224,6 +224,7 @@ class _MyAppState extends State<MyApp> {
               );
             }
 
+            print('DEBUG: Construindo MedicationAlertScreen com horario=$horario, medicationIds=$medicationIds');
             return MaterialPageRoute(
               builder: (context) => MedicationAlertScreen(
                 horario: horario,
@@ -237,14 +238,11 @@ class _MyAppState extends State<MyApp> {
           }
         }
 
-        // Rota padrão: WelcomeScreen
-        print('DEBUG: Rota padrão: /welcome');
+        // Evitar renderizar WelcomeScreen imediatamente, retornando um placeholder temporário
+        print('DEBUG: Rota não é /medication_alert ou initialRouteData nulo, retornando placeholder');
         return MaterialPageRoute(
-          builder: (context) => WelcomeScreen(
-            database: widget.database,
-            notificationService: widget.notificationService,
-          ),
-          settings: const RouteSettings(name: '/welcome'),
+          builder: (context) => const SizedBox.shrink(), // Placeholder vazio até a navegação ser processada
+          settings: const RouteSettings(name: '/placeholder'),
         );
       },
     );
