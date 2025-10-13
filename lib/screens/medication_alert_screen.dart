@@ -55,6 +55,13 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     _fetchMedications();
   }
 
+  void _handleSkip(int index) {
+    setState(() {
+      isSkipped[index] = true;
+    });
+  }
+
+
 
   static Future<List<Map<String, dynamic>>> _fetchMedicationsInIsolate(FetchMedicationsParams params) async {
     final startTime = DateTime.now();
@@ -237,14 +244,24 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    const SizedBox(height: 40), // <-- Espaçamento maior no topo
                     Text(
                       "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year} - ${widget.horario}",
-                      style: const TextStyle(color: Color.fromRGBO(0, 105, 148, 1), fontSize: 30, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: Color.fromRGBO(0, 105, 148, 1),
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Expanded(
                       child: medications.isEmpty
-                          ? const Center(child: Text('Nenhum medicamento encontrado', style: TextStyle(fontSize: 20)))
+                          ? const Center(
+                              child: Text(
+                                'Nenhum medicamento encontrado',
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                              ),
+                            )
                           : ListView.builder(
                               itemCount: medications.length,
                               itemBuilder: (context, index) {
@@ -280,7 +297,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                       const SizedBox(height: 8),
                                       Text(
                                         "Tomar: $doseFormatada comprimido(s)",
-                                        style: const TextStyle(fontSize: 20),
+                                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                                       ),
                                       const SizedBox(height: 16),
                                       if (fotoPath.isNotEmpty)
@@ -299,7 +316,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                                     ),
                                                     TextButton(
                                                       onPressed: () => Navigator.pop(context),
-                                                      child: const Text("Fechar"),
+                                                      child: const Text("Fechar", style: TextStyle(fontWeight: FontWeight.bold)),
                                                     ),
                                                   ],
                                                 ),
@@ -314,86 +331,92 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                           ),
                                         ),
                                       const SizedBox(height: 24),
+
+                                      // --- BOTÕES ---
                                       Column(
                                         children: [
-                                          ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: isTaken[index] ? Colors.grey : const Color(0xFF4CAF50),
-                                              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                                              textStyle: const TextStyle(fontSize: 20),
-                                            ),
-                                            onPressed: isTaken[index] || isSkipped[index]
-                                                ? null
-                                                : () {
-                                                    showDialog(
-                                                      context: context,
-                                                      barrierDismissible: false,
-                                                      builder: (context) => Center(
-                                                        child: Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                                          decoration: BoxDecoration(
-                                                            color: const Color(0xFF006994),
-                                                            borderRadius: BorderRadius.circular(8),
-                                                          ),
-                                                          child: Text(
-                                                            'Tomou o medicamento ${med['nome']}',
-                                                            style: const TextStyle(color: Colors.white, fontSize: 20),
+                                          SizedBox(
+                                            width: 230,
+                                            child: ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF006994),
+                                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(30), // 🔸 bordas arredondadas
+                                                ),
+                                                textStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                                              ),
+                                              onPressed: isTaken[index] || isSkipped[index]
+                                                  ? null
+                                                  : () {
+                                                      showDialog(
+                                                        context: context,
+                                                        barrierDismissible: false,
+                                                        builder: (context) => Center(
+                                                          child: Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                                            decoration: BoxDecoration(
+                                                              color: const Color(0xFF006994),
+                                                              borderRadius: BorderRadius.circular(8),
+                                                            ),
+                                                            child: Text(
+                                                              'Tomou o medicamento ${med['nome']}',
+                                                              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                                                            ),
                                                           ),
                                                         ),
-                                                      ),
-                                                    );
-                                                    Future.delayed(const Duration(seconds: 5), () {
-                                                      if (Navigator.of(context).canPop()) {
-                                                        Navigator.of(context).pop();
-                                                      }
-                                                    });
-                                                    _handleTake(index);
-                                                  },
-                                            child: const Text("Tomar"),
-
-                                                                                    ),
-                                          const SizedBox(height: 16),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              const SizedBox(width: 16),
-                                              Expanded(      child: ElevatedButton(
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: isSkipped[index] ? Colors.grey : Colors.red,
-                                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                                    textStyle: const TextStyle(fontSize: 20),
-                                                  ),
-                                                  onPressed: isTaken[index] || isSkipped[index]
-                                                      ? null
-                                                      : () {
-                                                            showDialog(
-                                                              context: context,
-                                                              barrierDismissible: false,
-                                                              builder: (context) => Center(
-                                                                child: Container(
-                                                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                                                                  decoration: BoxDecoration(
-                                                                    color: const Color(0xFF006994),
-                                                                    borderRadius: BorderRadius.circular(8),
-                                                                  ),
-                                                                  child: Text(
-                                                                    'Medicamento ${med['nome']} pulado',
-                                                                    style: const TextStyle(color: Colors.white, fontSize: 20),
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            );
-                                                            Future.delayed(const Duration(seconds: 5), () {
-                                                              if (Navigator.of(context).canPop()) {
-                                                                Navigator.of(context).pop();
-                                                              }
-                                                            });                                                            
-                                                          },
-                                                  child: const Text("Pular"),
-                                                ),
-                                              ),
-                                            ],
+                                                      );
+                                                      Future.delayed(const Duration(seconds: 5), () {
+                                                        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+                                                      });
+                                                      _handleTake(index);
+                                                    },
+                                              child: const Text("Tomar", style: TextStyle(color: Colors.white)),
+                                            ),
                                           ),
+
+                                          const SizedBox(height: 16),
+
+                                          SizedBox(
+                                            width: 230,
+                                            child: ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: const Color(0xFF55AA55),
+                                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(30), // 🔸 bordas arredondadas
+                                                ),
+                                                textStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                                              ),
+                                              onPressed: isTaken[index] || isSkipped[index]
+                                                  ? null
+                                                  : () {
+                                                      showDialog(
+                                                        context: context,
+                                                        barrierDismissible: false,
+                                                        builder: (context) => Center(
+                                                          child: Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                                            decoration: BoxDecoration(
+                                                              color: const Color(0xFF006994),
+                                                              borderRadius: BorderRadius.circular(8),
+                                                            ),
+                                                            child: Text(
+                                                              'Medicamento ${med['nome']} pulado',
+                                                              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      );
+                                                      Future.delayed(const Duration(seconds: 5), () {
+                                                        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+                                                      });
+                                                      _handleSkip(index); // ✅ Agora definido
+                                                    },
+                                              child: const Text("Pular", style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ),
+
                                         ],
                                       ),
                                     ],
@@ -408,4 +431,5 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
             ),
     );
   }
+
 }

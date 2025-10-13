@@ -35,19 +35,34 @@ class MainActivity : FlutterActivity() {
         // Armazenar o Intent inicial
         initialIntent = intent
 
-        // Configurar a engine e processar o intent imediatamente
-        configureFlutterEngine(flutterEngine ?: FlutterEngine(this).also {
-            FlutterEngineCache.getInstance().put("main", it)
-            Log.d("MediAlerta", "Nova FlutterEngine criada e armazenada no cache: $it")
-        })
+        // Tentar obter a engine do cache primeiro
+        var engine = FlutterEngineCache.getInstance().get("main")
+        if (engine == null) {
+            engine = FlutterEngine(this)
+            FlutterEngineCache.getInstance().put("main", engine)
+            Log.d("MediAlerta", "Nova FlutterEngine criada e armazenada no cache: $engine")
+        } else {
+            Log.d("MediAlerta", "Usando FlutterEngine do cache: $engine")
+        }
+
+        configureFlutterEngine(engine)
         handleIntent(initialIntent)
+    }
+
+    companion object {
+        private var isEngineConfigured = false
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        GeneratedPluginRegistrant.registerWith(flutterEngine)
-        FlutterEngineCache.getInstance().put("main", flutterEngine)
-        Log.d("MediAlerta", "configureFlutterEngine iniciado, flutterEngine=$flutterEngine")
+        if (!isEngineConfigured) {
+            GeneratedPluginRegistrant.registerWith(flutterEngine)
+            isEngineConfigured = true
+            Log.d("MediAlerta", "Plugins registrados na FlutterEngine: $flutterEngine")
+        } else {
+            Log.d("MediAlerta", "Plugins já registrados, pulando registro na FlutterEngine: $flutterEngine")
+        }
+        Log.d("MediAlerta", "configureFlutterEngine finalizado, flutterEngine=$flutterEngine")
 
         // Canal de navegação
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL).setMethodCallHandler { call, result ->

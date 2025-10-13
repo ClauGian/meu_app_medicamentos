@@ -28,31 +28,8 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: const Color(0xFFCCCCCC),
       appBar: AppBar(
         toolbarHeight: 120,
-        title: Padding(
-          padding: const EdgeInsets.only(top: 22, left: 25.0),
-          child: RichText(
-            text: const TextSpan(
-              children: [
-                TextSpan(
-                  text: 'Medi',
-                  style: TextStyle(
-                    color: Color.fromRGBO(0, 105, 148, 1),
-                    fontSize: 45,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                TextSpan(
-                  text: 'Alerta',
-                  style: TextStyle(
-                    color: Color.fromRGBO(85, 170, 85, 1),
-                    fontSize: 45,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        leadingWidth: 100,         // espaço extra para a hitbox do ícone
+        titleSpacing: 0,           // evita deslocamentos automáticos do título
         backgroundColor: const Color(0xFFCCCCCC),
         elevation: 0,
         leading: Builder(
@@ -62,6 +39,37 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.menu, size: 60),
               color: const Color.fromRGBO(0, 0, 0, 1),
               onPressed: () => Scaffold.of(context).openDrawer(),
+              padding: const EdgeInsets.all(16),
+              constraints: const BoxConstraints(minWidth: 80, minHeight: 80),
+            ),
+          ),
+        ),
+        title: Padding(
+          // deixamos apenas um pequeno left aqui porque já controlamos leadingWidth
+          padding: const EdgeInsets.only(top: 22.0, left: 8.0),
+          child: Align(
+            alignment: Alignment.centerLeft, // garante alinhamento à esquerda da área do title
+            child: RichText(
+              text: const TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Medi',
+                    style: TextStyle(
+                      color: Color.fromRGBO(0, 105, 148, 1),
+                      fontSize: 45,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  TextSpan(
+                    text: 'Alerta',
+                    style: TextStyle(
+                      color: Color.fromRGBO(85, 170, 85, 1),
+                      fontSize: 45,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

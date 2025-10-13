@@ -45,14 +45,16 @@ void main() async {
       }
 
       navigator.pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => MedicationAlertScreen(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => MedicationAlertScreen(
             horario: horario,
             medicationIds: medicationIds,
             database: database,
             notificationService: notificationService,
             rootIsolateToken: rootIsolateToken,
           ),
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
         ),
       );
       print('DEBUG: Navegação substituída para MedicationAlertScreen concluída');
@@ -149,38 +151,42 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+
   List<Route<dynamic>> _generateInitialRoutes(String initialRoute) {
-    print('DEBUG: Gerando rotas iniciais para: $initialRoute');
+    print('DEBUG: Gerando rotas iniciais para: $initialRoute, initialRouteData: ${widget.initialRouteData}');
 
-    if (initialRoute == '/medication_alert' && widget.initialRouteData != null) {
+    // Normalizar initialRoute removendo / inicial se presente
+    final normalizedRoute = initialRoute.startsWith('/') ? initialRoute.substring(1) : initialRoute;
+
+    if (normalizedRoute == 'medication_alert' && widget.initialRouteData != null) {
+      print('DEBUG: Condição para medication_alert atendida');
       final routeData = widget.initialRouteData!;
-      if (routeData['route'] == 'medication_alert') {
-        final horario = routeData['horario'] as String? ?? '08:00';
-        final medicationIds = (routeData['medicationIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? <String>[];
-        final rootIsolateToken = RootIsolateToken.instance;
+      final horario = routeData['horario'] as String? ?? '08:00';
+      final medicationIds = (routeData['medicationIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? <String>[];
+      final rootIsolateToken = RootIsolateToken.instance;
 
-        if (rootIsolateToken == null) {
-          print('DEBUG: ERRO: RootIsolateToken.instance retornou null em _generateInitialRoutes');
-          return [
-            MaterialPageRoute(
-              builder: (context) => const Scaffold(body: Center(child: Text('Erro: RootIsolateToken nulo'))),
-            )
-          ];
-        }
-
+      if (rootIsolateToken == null) {
+        print('DEBUG: ERRO: RootIsolateToken.instance retornou null em _generateInitialRoutes');
         return [
           MaterialPageRoute(
-            builder: (context) => MedicationAlertScreen(
-              horario: horario,
-              medicationIds: medicationIds,
-              database: widget.database,
-              notificationService: widget.notificationService,
-              rootIsolateToken: rootIsolateToken,
-            ),
-            settings: const RouteSettings(name: '/medication_alert'),
+            builder: (context) => const Scaffold(body: Center(child: Text('Erro: RootIsolateToken nulo'))),
           )
         ];
       }
+
+      print('DEBUG: Gerando rota inicial para MedicationAlertScreen com horario=$horario, medicationIds=$medicationIds');
+      return [
+        MaterialPageRoute(
+          builder: (context) => MedicationAlertScreen(
+            horario: horario,
+            medicationIds: medicationIds,
+            database: widget.database,
+            notificationService: widget.notificationService,
+            rootIsolateToken: rootIsolateToken,
+          ),
+          settings: const RouteSettings(name: '/medication_alert'),
+        )
+      ];
     }
 
     // Rota padrão: WelcomeScreen
@@ -195,6 +201,8 @@ class _MyAppState extends State<MyApp> {
       )
     ];
   }
+
+
 
   @override
   Widget build(BuildContext context) {

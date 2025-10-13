@@ -31,29 +31,24 @@
 
 <Button
     android:id="@+id/view_button"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
+    android:layout_width="220dp"
+    android:layout_height="60dp"
     android:text="Ver"
     android:textSize="20sp"
     android:textColor="#FFFFFF"
     android:background="@drawable/button_rounded_blue"
-    android:paddingStart="40dp"
-    android:paddingEnd="40dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp" />
+    android:layout_marginTop="10dp"
+    android:layout_marginBottom="30dp" />
 
 <Button
     android:id="@+id/snooze_button"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
+    android:layout_width="220dp"
+    android:layout_height="60dp"
     android:text="Adiar"
     android:textSize="20sp"
     android:textColor="#FFFFFF"
-    android:background="@drawable/button_rounded_green"
-    android:paddingStart="40dp"
-    android:paddingEnd="40dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp" />
+    android:background="@drawable/button_rounded_green" />
+
 
 </LinearLayout>
 
