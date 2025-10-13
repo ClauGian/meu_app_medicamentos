@@ -21,7 +21,7 @@
 
     <application
         android:label="MediAlerta"
-        android:name="${applicationName}"
+        android:name="com.claudinei.medialerta.MyApplication"
         android:icon="@mipmap/ic_launcher">
 
         <activity

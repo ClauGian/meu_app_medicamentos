@@ -27,30 +27,25 @@ class MainActivity : FlutterActivity() {
     )
     private var initialIntent: Intent? = null
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d("MediAlerta", "onCreate chamado, intent inicial: $intent, extras: ${intent.extras}")
 
-        // Armazenar o Intent inicial
-        initialIntent = intent
-
-        // Tentar obter a engine do cache primeiro
-        var engine = FlutterEngineCache.getInstance().get("main")
-        if (engine == null) {
-            engine = FlutterEngine(this)
-            FlutterEngineCache.getInstance().put("main", engine)
-            Log.d("MediAlerta", "Nova FlutterEngine criada e armazenada no cache: $engine")
-        } else {
-            Log.d("MediAlerta", "Usando FlutterEngine do cache: $engine")
-        }
-
-        configureFlutterEngine(engine)
-        handleIntent(initialIntent)
+        // Lida com o intent inicial
+        handleIntent(intent)
     }
 
-    companion object {
-        private var isEngineConfigured = false
+    override fun provideFlutterEngine(context: Context): FlutterEngine? {
+        var flutterEngine = FlutterEngineCache.getInstance().get("main")
+        if (flutterEngine == null) {
+            Log.d("MediAlerta", "Nenhuma FlutterEngine no cache, criando nova")
+            flutterEngine = FlutterEngine(this)
+            GeneratedPluginRegistrant.registerWith(flutterEngine)
+            FlutterEngineCache.getInstance().put("main", flutterEngine)
+        } else {
+            Log.d("MediAlerta", "Usando FlutterEngine do cache: $flutterEngine")
+        }
+        return flutterEngine
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -202,5 +197,9 @@ class MainActivity : FlutterActivity() {
         MethodChannel(engine.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL)
             .invokeMethod("navigateToMedicationAlert", initialRouteData)
         Log.d("MediAlerta", "navigateToMedicationAlert invocado com initialRouteData=$initialRouteData")
+    }
+
+    companion object {
+        private var isEngineConfigured = false
     }
 }
