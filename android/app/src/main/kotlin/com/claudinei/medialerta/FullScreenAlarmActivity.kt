@@ -55,8 +55,7 @@ class FullScreenAlarmActivity : AppCompatActivity() {
                 putExtra("route", "medication_alert")
                 putExtra("horario", horario)
                 putStringArrayListExtra("medicationIds", ArrayList(medicationIds))
-                // Alteração: Usar FLAG_ACTIVITY_CLEAR_TOP com FLAG_ACTIVITY_SINGLE_TOP
-                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                // Não adicionar nenhuma flag especial
             }
             startActivity(intent)
             finish()

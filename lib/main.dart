@@ -6,10 +6,16 @@ import 'screens/welcome_screen.dart';
 import 'screens/medication_alert_screen.dart';
 import 'notification_service.dart';
 import 'database_helper.dart';
+import 'screens/loading_screen.dart'; // ADICIONAR
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print('DEBUG: Iniciando main');
+  
+  // Log crítico para confirmar que Flutter está executando
+  debugPrint('═══════════════════════════════════════');
+  debugPrint('DEBUG: FLUTTER MAIN INICIADO');
+  debugPrint('═══════════════════════════════════════');
 
   final startTime = DateTime.now().millisecondsSinceEpoch;
 
@@ -20,63 +26,27 @@ void main() async {
 
   // Inicializar o NotificationService
   final NotificationService notificationService = NotificationService();
-  await notificationService.init(database);
-  print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-  // Configurar o MethodChannel handler
-  const MethodChannel('com.claudinei.medialerta/navigation').setMethodCallHandler((call) async {
-    if (call.method == 'navigateToMedicationAlert') {
-      final args = call.arguments as Map;
-      print('DEBUG: Navegando para MedicationAlertScreen via MethodChannel com args=$args');
-
-      final navigator = NotificationService.navigatorKey.currentState;
-      if (navigator == null || !navigator.mounted) {
-        print('DEBUG: Navigator não disponível, será tratado pelo onGenerateRoute');
-        return null;
-      }
-
-      final horario = args['horario'] as String? ?? '08:00';
-      final medicationIds = (args['medicationIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? <String>[];
-
-      final rootIsolateToken = RootIsolateToken.instance;
-      if (rootIsolateToken == null) {
-        print('DEBUG: ERRO: RootIsolateToken.instance retornou null');
-        return null;
-      }
-
-      navigator.pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => MedicationAlertScreen(
-            horario: horario,
-            medicationIds: medicationIds,
-            database: database,
-            notificationService: notificationService,
-            rootIsolateToken: rootIsolateToken,
-          ),
-          transitionDuration: Duration.zero,
-          reverseTransitionDuration: Duration.zero,
-        ),
-      );
-      print('DEBUG: Navegação substituída para MedicationAlertScreen concluída');
-    }
-    return null;
-  });
+  try {
+    await notificationService.init(database);
+    print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+  } catch (e) {
+    print('DEBUG: ERRO ao inicializar NotificationService: $e');
+    print('DEBUG: Continuando mesmo com erro...');
+    // Continuar mesmo com erro para não travar o app
+  }
 
   try {
     await Firebase.initializeApp();
     print('DEBUG: Firebase inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
 
-    // Obter dados de rota inicial
-    final routeData = await notificationService.getInitialRouteData();
-    print('DEBUG: initialRouteData obtida: $routeData');
-    final initialRoute = routeData != null && routeData['route'] == 'medication_alert' ? '/medication_alert' : '/welcome';
-    print('DEBUG: Rota inicial determinada: $initialRoute');
+  // NÃO buscar dados aqui, deixar o Android fornecer
+    print('DEBUG: Pulando getInitialRouteData no main()');
 
     runApp(MyApp(
       database: database,
       notificationService: notificationService,
-      initialRoute: initialRoute,
-      initialRouteData: routeData, // Passar os dados diretamente
+      initialRoute: '/loading', // Começar com loading
+      initialRouteData: null, // Será buscado depois
     ));
 
     print('DEBUG: App rodando - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
@@ -114,41 +84,114 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  
   @override
   void initState() {
     super.initState();
-    // Configurar navegação assíncrona, se necessário
-    if (widget.initialRoute == '/medication_alert' && widget.initialRouteData != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    print('DEBUG: initState do _MyAppState chamado');
+    
+    // Configurar MethodChannel handler para receber navegação do Android
+    const platform = MethodChannel('com.claudinei.medialerta/navigation');
+    platform.setMethodCallHandler((call) async {
+      print('DEBUG: MethodChannel recebeu chamada: ${call.method}');
+      
+      if (call.method == 'navigateToMedicationAlert') {
+        final args = call.arguments as Map;
+        print('DEBUG: Navegando para MedicationAlertScreen via MethodChannel com args=$args');
+
         final navigator = NotificationService.navigatorKey.currentState;
-        if (navigator != null && navigator.mounted) {
-          final routeData = widget.initialRouteData!;
-          final horario = routeData['horario'] as String? ?? '08:00';
-          final medicationIds = (routeData['medicationIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? <String>[];
-          final rootIsolateToken = RootIsolateToken.instance;
-
-          if (rootIsolateToken == null) {
-            print('DEBUG: ERRO: RootIsolateToken.instance retornou null');
-            return;
-          }
-
-          navigator.pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => MedicationAlertScreen(
-                horario: horario,
-                medicationIds: medicationIds,
-                database: widget.database,
-                notificationService: widget.notificationService,
-                rootIsolateToken: rootIsolateToken,
-              ),
-            ),
-          );
-          print('DEBUG: Navegação substituída para MedicationAlertScreen via Navigator');
-        } else {
-          print('DEBUG: Navigator não disponível após inicialização');
+        if (navigator == null || !navigator.mounted) {
+          print('DEBUG: Navigator não disponível no MethodChannel handler');
+          return null;
         }
-      });
-    }
+
+        final horario = args['horario'] as String? ?? '08:00';
+        final medicationIds = (args['medicationIds'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ?? <String>[];
+        final rootIsolateToken = RootIsolateToken.instance;
+
+        if (rootIsolateToken == null) {
+          print('DEBUG: ERRO: RootIsolateToken.instance retornou null');
+          return null;
+        }
+
+        print('DEBUG: Executando navegação via MethodChannel');
+
+        navigator.pushReplacement(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => MedicationAlertScreen(
+              horario: horario,
+              medicationIds: medicationIds,
+              database: widget.database,
+              notificationService: widget.notificationService,
+              rootIsolateToken: rootIsolateToken,
+            ),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          ),
+        );
+        
+        print('DEBUG: Navegação via MethodChannel concluída');
+      }
+      return null;
+    });
+    
+    // Aguardar 500ms antes de buscar dados iniciais
+    Future.delayed(const Duration(milliseconds: 500), () async {
+      print('DEBUG: Delay concluído, buscando dados do Android');
+      
+      try {
+        final result = await platform.invokeMethod('getInitialRoute');
+        
+        print('DEBUG: Dados recebidos do Android: $result');
+        
+        if (result != null && result is Map) {
+          final routeData = Map<String, dynamic>.from(result);
+          
+          if (routeData['route'] == 'medication_alert') {
+            final navigator = NotificationService.navigatorKey.currentState;
+            
+            if (navigator != null && navigator.mounted) {
+              final horario = routeData['horario'] as String? ?? '08:00';
+              final medicationIds = (routeData['medicationIds'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ?? <String>[];
+              final rootIsolateToken = RootIsolateToken.instance;
+
+              if (rootIsolateToken == null) {
+                print('DEBUG: ERRO: RootIsolateToken.instance retornou null');
+                return;
+              }
+
+              print('DEBUG: Navegando para MedicationAlertScreen com horario=$horario, ids=$medicationIds');
+
+              navigator.pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => MedicationAlertScreen(
+                    horario: horario,
+                    medicationIds: medicationIds,
+                    database: widget.database,
+                    notificationService: widget.notificationService,
+                    rootIsolateToken: rootIsolateToken,
+                  ),
+                ),
+              );
+              
+              print('DEBUG: Navegação concluída');
+            } else {
+              print('DEBUG: Navigator não disponível');
+            }
+          } else {
+            print('DEBUG: Rota não é medication_alert, ignorando navegação');
+          }
+        } else {
+          print('DEBUG: Nenhum dado de rota recebido do Android');
+        }
+      } catch (e) {
+        print('DEBUG: Erro ao buscar dados do Android: $e');
+      }
+    });
   }
 
 
@@ -189,6 +232,20 @@ class _MyAppState extends State<MyApp> {
       ];
     }
 
+    // Rota de loading
+    if (normalizedRoute == 'loading') {
+      print('DEBUG: Rotas iniciais: /loading');
+      return [
+        MaterialPageRoute(
+          builder: (context) => LoadingScreen(
+            database: widget.database,
+            notificationService: widget.notificationService,
+          ),
+          settings: const RouteSettings(name: '/loading'),
+        )
+      ];
+    }
+
     // Rota padrão: WelcomeScreen
     print('DEBUG: Rotas iniciais padrão: /welcome');
     return [
@@ -206,7 +263,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    print('DEBUG: Construindo MyApp - Configurando MaterialApp');
+    debugPrint('═══════════════════════════════════════');
+    debugPrint('DEBUG: MYAPP BUILD CHAMADO');
+    debugPrint('═══════════════════════════════════════');
+    
     return MaterialApp(
       navigatorKey: NotificationService.navigatorKey,
       theme: ThemeData(
