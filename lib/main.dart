@@ -6,7 +6,6 @@ import 'screens/welcome_screen.dart';
 import 'screens/medication_alert_screen.dart';
 import 'notification_service.dart';
 import 'database_helper.dart';
-import 'screens/loading_screen.dart'; // ADICIONAR
 
 
 void main() async {
@@ -45,8 +44,8 @@ void main() async {
     runApp(MyApp(
       database: database,
       notificationService: notificationService,
-      initialRoute: '/loading', // Começar com loading
-      initialRouteData: null, // Será buscado depois
+      initialRoute: '/welcome',
+      initialRouteData: null,
     ));
 
     print('DEBUG: App rodando - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
@@ -137,8 +136,8 @@ class _MyAppState extends State<MyApp> {
       return null;
     });
     
-    // Aguardar 500ms antes de buscar dados iniciais
-    Future.delayed(const Duration(milliseconds: 500), () async {
+    // Buscar dados imediatamente, sem delay
+    Future.microtask(() async {
       print('DEBUG: Delay concluído, buscando dados do Android');
       
       try {
@@ -232,19 +231,7 @@ class _MyAppState extends State<MyApp> {
       ];
     }
 
-    // Rota de loading
-    if (normalizedRoute == 'loading') {
-      print('DEBUG: Rotas iniciais: /loading');
-      return [
-        MaterialPageRoute(
-          builder: (context) => LoadingScreen(
-            database: widget.database,
-            notificationService: widget.notificationService,
-          ),
-          settings: const RouteSettings(name: '/loading'),
-        )
-      ];
-    }
+    // Rota padrão: WelcomeScreen
 
     // Rota padrão: WelcomeScreen
     print('DEBUG: Rotas iniciais padrão: /welcome');

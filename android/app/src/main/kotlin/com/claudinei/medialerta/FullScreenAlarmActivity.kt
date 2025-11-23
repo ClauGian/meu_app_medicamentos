@@ -49,13 +49,24 @@ class FullScreenAlarmActivity : AppCompatActivity() {
         // Botão Ver
         val viewButton: Button = findViewById(R.id.view_button)
         viewButton.setOnClickListener {
-            Log.d("MediAlerta", "Botão 'Ver' clicado")
-            stopAndReleaseMediaPlayer()
+            // Parar som imediatamente
+            mediaPlayer?.let {
+                try {
+                    if (it.isPlaying) {
+                        it.stop()
+                    }
+                    it.release()
+                } catch (e: Exception) {
+                    Log.e("MediAlerta", "Erro ao parar MediaPlayer: ${e.message}")
+                }
+            }
+            mediaPlayer = null
+            
             val intent = Intent(this, MainActivity::class.java).apply {
                 putExtra("route", "medication_alert")
                 putExtra("horario", horario)
                 putStringArrayListExtra("medicationIds", ArrayList(medicationIds))
-                // Não adicionar nenhuma flag especial
+                addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             }
             startActivity(intent)
             finish()
@@ -134,7 +145,7 @@ class FullScreenAlarmActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        Log.d("MediAlerta", "onStop chamado")
+        Log.d("MediAlerta", "FullScreenAlarmActivity.onStop chamado")
         stopAndReleaseMediaPlayer()
     }
 

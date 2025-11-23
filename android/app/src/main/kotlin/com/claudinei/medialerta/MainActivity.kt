@@ -25,8 +25,10 @@ class MainActivity : FlutterActivity() {
         "payload" to null,
         "notificationId" to -1
     )
-    private var hasNavigatedViaMethodChannel = false // ADICIONAR ESTA LINHA
+
+    private var hasNavigatedViaMethodChannel = false
     private var initialIntent: Intent? = null
+    private var isInitialIntentProcessed = false // NOVA FLAG
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,7 +65,23 @@ class MainActivity : FlutterActivity() {
         // Canal de navegação
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
-                "getInitialRoute" -> result.success(initialRouteData)
+                "getInitialRoute" -> {
+                    Log.d("MediAlerta", "getInitialRoute chamado, isInitialIntentProcessed=$isInitialIntentProcessed")
+                    if (!isInitialIntentProcessed) {
+                        isInitialIntentProcessed = true
+                        Log.d("MediAlerta", "Retornando initialRouteData: $initialRouteData")
+                        result.success(initialRouteData)
+                    } else {
+                        Log.d("MediAlerta", "Intent inicial já processado, retornando dados vazios")
+                        result.success(mapOf(
+                            "route" to null,
+                            "horario" to null,
+                            "medicationIds" to arrayListOf<String>(),
+                            "payload" to null,
+                            "notificationId" to -1
+                        ))
+                    }
+                }
                 "openMedicationAlert" -> {
                     val args = call.arguments as? Map<String, Any>
                     initialRouteData = mapOf(
@@ -153,6 +171,7 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         Log.d("MediAlerta", "onNewIntent chamado, novo intent: ${intent?.toString()}, extras: ${intent?.extras?.toString()}")
+        isInitialIntentProcessed = false // Resetar flag para permitir nova navegação
         handleIntent(intent)
         
         // Se temos dados válidos de medication_alert, forçar navegação no Flutter
@@ -173,6 +192,19 @@ class MainActivity : FlutterActivity() {
     override fun onBackPressed() {
         // Mover app para background em vez de destruir
         moveTaskToBack(true)
+    }
+
+
+    override fun onStop() {
+        Log.d("MediAlerta", "MainActivity.onStop chamado, initialRouteData=$initialRouteData")
+        // NÃO chamar super.onStop() se temos dados de medication_alert
+        // Isso previne que o Android destrua a Activity
+        if (initialRouteData["route"] != "medication_alert") {
+            Log.d("MediAlerta", "onStop: Chamando super.onStop() (route=${initialRouteData["route"]})")
+            super.onStop()
+        } else {
+            Log.d("MediAlerta", "onStop: Bloqueado para prevenir destruição (temos dados de medication_alert)")
+        }
     }
 
 
@@ -205,7 +237,19 @@ class MainActivity : FlutterActivity() {
 
         Log.d("MediAlerta", "initialRouteData configurado (válido): $initialRouteData")
         Log.d("MediAlerta", "Flutter vai buscar os dados quando estiver pronto via getInitialRoute")
-        
+
+        // Se temos dados de medication_alert no onCreate, agendar navegação
+        if (initialRouteData["route"] == "medication_alert") {
+            Log.d("MediAlerta", "handleIntent: Dados de medication_alert detectados, agendando navegação")
+            Handler(Looper.getMainLooper()).postDelayed({
+                val engine = flutterEngine ?: FlutterEngineCache.getInstance().get("main")
+                engine?.let {
+                    Log.d("MediAlerta", "handleIntent: Forçando navegação após delay")
+                    MethodChannel(it.dartExecutor.binaryMessenger, NAVIGATION_CHANNEL)
+                        .invokeMethod("navigateToMedicationAlert", initialRouteData)
+                }
+            }, 100) // Tentar o mais rápido possível
+        }        
     }
 
     companion object {
