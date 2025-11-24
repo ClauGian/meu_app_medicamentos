@@ -296,9 +296,10 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                       ),
                                       const SizedBox(height: 8),
                                       Text(
-                                        "Tomar: $doseFormatada comprimido(s)",
+                                        "Tomar: $doseFormatada ${med['tipo_medicamento'] ?? ''}",
                                         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                                       ),
+
                                       const SizedBox(height: 16),
                                       if (fotoPath.isNotEmpty)
                                         GestureDetector(

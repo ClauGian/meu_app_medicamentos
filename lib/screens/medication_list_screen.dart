@@ -579,6 +579,7 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
                                               final adjustedMed = Map<String, dynamic>.from(med);
                                               adjustedMed['id'] = med['id']?.toString();
                                               adjustedMed['quantidade'] = med['quantidade']?.toString();
+                                              adjustedMed['tipo_medicamento'] = med['tipo_medicamento']?.toString();
                                               adjustedMed['dosagem_diaria'] = med['dosagem_diaria']?.toString();
                                               adjustedMed['frequencia'] = med['frequencia']?.toString();
                                               adjustedMed['isContinuous'] = med['isContinuous']?.toString();

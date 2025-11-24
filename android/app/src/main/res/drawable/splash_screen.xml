@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Fundo gradiente -->
     <item>
         <shape android:shape="rectangle">
             <gradient
-                android:startColor="#006994"
-                android:endColor="#ADD8E6"
-                android:angle="90" />
+                android:type="linear"
+                android:angle="90"
+                android:startColor="#5DAED1"   
+                android:centerColor="#F5FBFF"  
+                android:endColor="#5DAED1"     
+            />
         </shape>
     </item>
 
-    <!-- Ícone central -->
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@drawable/icone_ma_250_trans" /> <!-- Ícone do MediAlerta -->
+            android:src="@drawable/icone_ma_transp_250" />
     </item>
 
 </layer-list>
-

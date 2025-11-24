@@ -162,7 +162,7 @@ class DailyAlertsScreenState extends State<DailyAlertsScreen> {
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Text(
-                              '• $nome  –  $doseFormatada  comprimido(s)',
+                              '• $nome – $doseFormatada ${med['tipo_medicamento'] ?? ''}',
                               style: const TextStyle(
                                 fontSize: 18,
                                 color: Color.fromRGBO(0, 105, 148, 1),
