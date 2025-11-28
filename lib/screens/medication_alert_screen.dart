@@ -103,7 +103,7 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
 
         result = await params.database.query(
           'medications',
-          columns: ['id', 'nome', 'quantidade', 'dosagem_diaria', 'horarios', 'foto_embalagem', 'skip_count'],
+          columns: ['id', 'nome', 'quantidade', 'tipo_medicamento', 'dosagem_diaria', 'horarios', 'foto_embalagem', 'skip_count'],
           where: 'id IN (${intMedicationIds.map((_) => '?').join(',')})',
           whereArgs: intMedicationIds,
         );

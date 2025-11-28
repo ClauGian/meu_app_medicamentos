@@ -18,6 +18,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val NAVIGATION_CHANNEL = "com.claudinei.medialerta/navigation"
     private val FULLSCREEN_CHANNEL = "com.claudinei.medialerta/fullscreen"
+    private val NOTIFICATION_CHANNEL = "com.claudinei.medialerta/notification"
     private var initialRouteData: Map<String, Any?> = mapOf(
         "route" to null,
         "horario" to null,
@@ -157,6 +158,62 @@ class MainActivity : FlutterActivity() {
                     }
 
                     Log.d("MediAlerta", "✅ Agendamento da FullScreen feito para $delaySeconds segundos depois via BroadcastReceiver")
+                    result.success(true)
+                }
+
+                else -> result.notImplemented()
+            }
+        }
+
+
+        // Canal de Notificação (para alarmes regulares)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, NOTIFICATION_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "scheduleNotification" -> {
+                    val args = call.arguments as? Map<String, Any>
+                    val id = args?.get("id") as? Int ?: 0
+                    val title = args?.get("title") as? String ?: "MediAlerta"
+                    val body = args?.get("body") as? String ?: "Hora do medicamento"
+                    val payload = args?.get("payload") as? String ?: ""
+                    val scheduledTimeMillis = (args?.get("scheduledTime") as? Number)?.toLong() ?: 0L
+
+                    // Extrair horario, medicationId e sound do payload (formato: "14:47|1|malta")
+                    val payloadParts = payload.split("|")
+                    val horario = if (payloadParts.isNotEmpty()) payloadParts[0] else "08:00"
+                    val medicationId = if (payloadParts.size > 1) payloadParts[1] else ""
+                    val sound = if (payloadParts.size > 2) payloadParts[2] else "malta"
+                    val medicationIds = if (medicationId.isNotEmpty()) {
+                        arrayListOf(medicationId)
+                    } else {
+                        arrayListOf<String>()
+                    }
+
+                    Log.d("MediAlerta", "Payload parseado - horario: $horario, medicationId: $medicationId, sound: $sound")
+                    Log.d("MediAlerta", "✅ Alarme agendado - Horario: $horario, MedID: $medicationIds, Som: $sound, Para: ${java.util.Date(scheduledTimeMillis)}")
+
+                    val alarmIntent = Intent(this, AlarmReceiver::class.java).apply {
+                        putExtra("horario", horario)
+                        putStringArrayListExtra("medicationIds", medicationIds)
+                        putExtra("payload", payload)
+                        putExtra("title", title)
+                        putExtra("body", body)
+                    }
+
+                    val pendingIntent = PendingIntent.getBroadcast(
+                        this,
+                        id,
+                        alarmIntent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    )
+
+                    val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, scheduledTimeMillis, pendingIntent)
+                    } else {
+                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, scheduledTimeMillis, pendingIntent)
+                    }
+
+                    Log.d("MediAlerta", "✅ Alarme agendado via MethodChannel (ID: $id) para ${java.util.Date(scheduledTimeMillis)}")
                     result.success(true)
                 }
 

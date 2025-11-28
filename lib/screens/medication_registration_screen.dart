@@ -10,7 +10,9 @@ import 'package:dropdown_button2/dropdown_button2.dart';
 import '../notification_service.dart';
 import 'medication_list_screen.dart';
 import 'dart:async';
-import 'package:medialerta/screens/home_screen.dart'; // Ajuste o caminho conforme sua estrutura
+import 'package:medialerta/screens/home_screen.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
+
 
 class MedicationRegistrationScreen extends StatefulWidget {
   final Database database;
@@ -616,6 +618,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
       final schema = await database.rawQuery('PRAGMA table_info(medications)');
       print("Esquema da tabela medications: $schema");
 
+      // Buscar som do SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final selectedSound = prefs.getString('selected_sound') ?? 'malta';
+
       final medicationData = {
         'nome': _nameController.text.trim(),
         'quantidade': int.parse(_stockController.text),
@@ -630,6 +636,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
         'isContinuous': _isContinuous ? 1 : 0,
         'foto_embalagem': _image?.path ?? '',
         'skip_count': widget.medication?['skip_count'] ?? 0,
+        'tipo_alarme': selectedSound, // 🔹 ADICIONAR ESSA LINHA
       };
       print('Horários salvos: ${medicationData['horarios']}');
       print("Dados do medicamento: $medicationData");
@@ -680,53 +687,10 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
         print("Inserção concluída");
       }
 
-      // Inicializar o NotificationService apenas se necessário
-      final notificationService = widget.notificationService; // Alterado para usar widget.notificationService
-      // Não precisamos chamar init novamente, pois já foi inicializado em main.dart
-
-      final horarios = _timeControllers
-          .map((c) => c.text.trim())
-          .where((time) => time.isNotEmpty)
-          .toList();
-      final startDate = DateFormat('dd/MM/yyyy').parse(_startDateController.text);
-      for (int i = 0; i < horarios.length; i++) {
-        final timeParts = horarios[i].split(':');
-        DateTime scheduledTime = DateTime(
-          startDate.year,
-          startDate.month,
-          startDate.day,
-          int.parse(timeParts[0]),
-          int.parse(timeParts[1]),
-        );
-
-        // Verificar se a data é passada, presente ou no mesmo dia
-        final now = DateTime.now();
-        if (scheduledTime.isBefore(now) ||
-            scheduledTime.isAtSameMomentAs(now) ||
-            (scheduledTime.year == now.year &&
-                scheduledTime.month == now.month &&
-                scheduledTime.day == now.day)) {
-          // Avançar para o próximo dia
-          scheduledTime = DateTime(
-            startDate.year,
-            startDate.month,
-            startDate.day + 1, // Avançar um dia
-            int.parse(timeParts[0]),
-            int.parse(timeParts[1]),
-          );
-        }
-
-        print("Agendando notificação $i: ${DateFormat('dd/MM/yyyy HH:mm').format(scheduledTime)}");
-        await notificationService.scheduleNotification(
-          id: (medicationData.hashCode + i) % 1000000,
-          title: 'Hora de tomar ${_nameController.text}',
-          body: 'Dose: ${_dosageController.text} às ${horarios[i]}',
-          payload: _nameController.text, // Usar o ID do medicamento seria melhor
-          scheduledTime: scheduledTime,
-          sound: 'alarm',
-        );
-        print("Notificação $i agendada com sucesso");
-      }
+      // Reagendar TODOS os alarmes do sistema após salvar
+      print('DEBUG: Chamando scheduleAllMedicationAlarms após salvar medicamento');
+      await widget.notificationService.scheduleAllMedicationAlarms();
+      print('DEBUG: scheduleAllMedicationAlarms concluído');
 
       print("Salvamento concluído, chamando _showPostSaveOptions");
       _showPostSaveOptions();
@@ -737,6 +701,7 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
       );
     }
   }
+
 
   void _showPostSaveOptions() {
     print("Exibindo janela de pós-salvamento");

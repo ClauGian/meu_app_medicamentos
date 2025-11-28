@@ -11,7 +11,7 @@ class AlertSoundSelectionScreen extends StatefulWidget {
 
 class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
   final AudioPlayer audioPlayer = AudioPlayer();
-  final List<String> sounds = ['alarm.mp3', 'alert.mp3', 'malta.mp3', 'simple.mp3', 'violin.mp3'];
+  final List<String> sounds = ['alarm', 'alert', 'malta', 'simple', 'violin'];
   String? selectedSound;
   bool _isPlaying = false;
   bool _isEditing = false;

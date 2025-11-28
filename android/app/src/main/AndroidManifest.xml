@@ -90,6 +90,10 @@
             android:name=".AlarmReceiver"
             android:exported="true" />
 
+        <receiver
+            android:name=".NotificationReceiver"
+            android:exported="true" />
+
         <service
             android:name="dev.fluttercommunity.plus.androidalarmmanager.AlarmService"
             android:exported="false"/>

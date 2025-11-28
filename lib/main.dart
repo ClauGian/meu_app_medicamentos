@@ -25,13 +25,23 @@ void main() async {
 
   // Inicializar o NotificationService
   final NotificationService notificationService = NotificationService();
+
   try {
     await notificationService.init(database);
     print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-  } catch (e) {
+    
+    // Agendar alarmes de todos os medicamentos ativos
+    print('DEBUG: ========================================');
+    print('DEBUG: INICIANDO AGENDAMENTO DE ALARMES');
+    print('DEBUG: ========================================');
+    await notificationService.scheduleAllMedicationAlarms();
+    print('DEBUG: ========================================');
+    print('DEBUG: AGENDAMENTO DE ALARMES CONCLUÍDO');
+    print('DEBUG: ========================================');
+  } catch (e, stackTrace) {
     print('DEBUG: ERRO ao inicializar NotificationService: $e');
+    print('DEBUG: StackTrace: $stackTrace');
     print('DEBUG: Continuando mesmo com erro...');
-    // Continuar mesmo com erro para não travar o app
   }
 
   try {
@@ -40,6 +50,7 @@ void main() async {
 
   // NÃO buscar dados aqui, deixar o Android fornecer
     print('DEBUG: Pulando getInitialRouteData no main()');
+
 
     runApp(MyApp(
       database: database,

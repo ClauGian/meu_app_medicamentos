@@ -10,6 +10,7 @@ import 'screens/medication_alert_screen.dart';
 import 'package:just_audio/just_audio.dart'; // Mantém apenas just_audio
 // ignore: unused_import
 import 'package:flutter_isolate/flutter_isolate.dart';
+import 'package:path/path.dart';
 
 
 final _processedNotificationIds = <int>{};
@@ -28,6 +29,8 @@ class NotificationService {
   static const MethodChannel _navigationChannel = MethodChannel('com.claudinei.medialerta/navigation');
   static const MethodChannel _actionChannel = MethodChannel('com.claudinei.medialerta/notification_actions');
   static const MethodChannel _fullscreenChannel = MethodChannel('com.claudinei.medialerta/fullscreen');
+  static const MethodChannel _notificationChannel = MethodChannel('com.claudinei.medialerta/notification'); // <- Adicionar 'MethodChannel' aqui
+  
   final MethodChannel _deviceChannel = const MethodChannel('com.claudinei.medialerta/device');
   final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
   Database? _database;
@@ -236,7 +239,7 @@ class NotificationService {
             description: 'Canal para lembretes de medicamentos com som nativo',
             importance: Importance.max,
             playSound: true, // 🔹 Ativar som nativo
-            sound: RawResourceAndroidNotificationSound('malta'), // 🔹 Usar malta.mp3 por padrão
+            //sound: RawResourceAndroidNotificationSound('malta'), // 🔹 Usar malta.mp3 por padrão
             enableVibration: true,
             enableLights: true,
             ledColor: Colors.blue,
@@ -408,10 +411,6 @@ class NotificationService {
     }
   }
 
-  
-
-
-
 
   Future<void> scheduleNotification({
     required int id,
@@ -440,21 +439,18 @@ class NotificationService {
     }
 
     try {
-      // Chamar MethodChannel para agendar a notificação no Android
-      await MethodChannel('com.claudinei.medialerta/notification').invokeMethod(
-        'scheduleNotification',
-        {
-          'id': id,
-          'title': title,
-          'body': body ?? 'Toque para ver os medicamentos',
-          'sound': sound,
-          'payload': '$payload|$sound',
-          'scheduledTime': scheduledTime.millisecondsSinceEpoch,
-        },
-      );
-      print('DEBUG: Notificação agendada via MethodChannel para $scheduledTime');
+      await _notificationChannel.invokeMethod('scheduleNotification', {
+        'id': id,
+        'title': title,
+        'body': body ?? 'Toque para ver os medicamentos',
+        'payload': payload,
+        'sound': sound,
+        'scheduledTime': scheduledTime.millisecondsSinceEpoch,
+      });
+      
+      print('DEBUG: Alarme agendado com sucesso via MethodChannel para $scheduledTime (ID: $id)');
     } catch (e, stackTrace) {
-      print('DEBUG: Erro ao agendar notificação via MethodChannel: $e');
+      print('DEBUG: Erro ao agendar via MethodChannel: $e');
       print('DEBUG: StackTrace: $stackTrace');
     }
   }
@@ -671,31 +667,70 @@ class NotificationService {
 
 
 
-
-
   @pragma('vm:entry-point')
-  Future<void> alarmCallback(int id, Map<String, dynamic> params) async {
-    print('DEBUG: Iniciando alarmCallback para ID $id com params: $params');
-    try {
-      final payload = params['payload'] as String?;
-      if (payload == null || payload.isEmpty) {
-        print('DEBUG: ERRO: Payload nulo ou vazio no alarmCallback');
-        return;
-      }
-      await showNotification(
-        id: params['id'] as int,
-        title: params['title'] as String,
-        body: params['body'] as String,
-        sound: params['sound'] as String,
-        payload: payload,
-      );
-      print('DEBUG: Notificação exibida via alarmCallback');
-    } catch (e, stackTrace) {
-      print('DEBUG: Erro no alarmCallback: $e');
-      print('DEBUG: StackTrace: $stackTrace');
+  static Future<void> alarmCallback(int id) async {
+    print('DEBUG: alarmCallback disparado! ID do alarme: $id');
+    
+    // Inicializar o plugin de notificações
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = 
+        FlutterLocalNotificationsPlugin();
+    
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+    );
+    
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+    
+    // Recuperar dados do banco para este alarme
+    final db = await openDatabase(
+      join(await getDatabasesPath(), 'medialerta.db'),
+    );
+    
+    // Buscar medicamentos que devem ser tomados agora
+    final now = DateTime.now();
+    final currentTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    
+    final medications = await db.query(
+      'medications',
+      where: 'quantidade > 0 AND horarios LIKE ?',
+      whereArgs: ['%$currentTime%'],
+    );
+    
+    await db.close();
+    
+    if (medications.isEmpty) {
+      print('DEBUG: Nenhum medicamento encontrado para este horário');
+      return;
     }
+    
+    // Mostrar notificação
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'medication_reminders',
+      'Lembretes de Medicamentos',
+      channelDescription: 'Notificações para lembrar de tomar medicamentos',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('malta'),
+    );
+    
+    const NotificationDetails notificationDetails = NotificationDetails(
+      android: androidDetails,
+    );
+    
+    await flutterLocalNotificationsPlugin.show(
+      id,
+      'Hora do Medicamento!',
+      '${medications.length} medicamento(s) para tomar agora',
+      notificationDetails,
+      payload: 'medication_alert',
+    );
+    
+    print('DEBUG: Notificação exibida com sucesso via alarmCallback');
   }
-
 
 
   Future<void> stopNotificationSound(int id) async {
@@ -719,6 +754,115 @@ class NotificationService {
       print('DEBUG: Erro ao cancelar notificações: $e');
     }
   }
+
+
+  Future<void> scheduleAllMedicationAlarms() async {
+    print('DEBUG: Iniciando scheduleAllMedicationAlarms');
+    try {
+      if (_database == null) {
+        print('DEBUG: ERRO: Database não inicializado');
+        return;
+      }
+
+      // Buscar medicamentos ativos (quantidade > 0)
+      final medications = await _database!.query(
+        'medications',
+        where: 'quantidade > ?',
+        whereArgs: [0],
+      );
+
+      print('DEBUG: Medicamentos ativos encontrados: ${medications.length}');
+
+      if (medications.isEmpty) {
+        print('DEBUG: Nenhum medicamento ativo para agendar');
+        return;
+      }
+
+      int alarmsScheduled = 0;
+
+      for (final med in medications) {
+        final id = med['id'] as int;
+        final nome = med['nome'] as String;
+        final horarios = med['horarios'] as String?;
+        final som = (med['tipo_alarme'] as String? ?? 'malta').replaceAll('.mp3', '');
+        print('DEBUG: ===== VERIFICAÇÃO DO SOM =====');
+        print('DEBUG: Medicamento: $nome');
+        print('DEBUG: tipo_alarme do banco: ${med['tipo_alarme']}');
+        print('DEBUG: som final usado: $som');
+        print('DEBUG: ================================');
+
+        if (horarios == null || horarios.isEmpty) {
+          print('DEBUG: Medicamento $nome (ID: $id) sem horários, pulando');
+          continue;
+        }
+
+        // Parsear horários separados por vírgula
+        final listaHorarios = horarios.split(',').map((h) => h.trim()).toList();
+        print('DEBUG: Medicamento $nome - Horários: $listaHorarios');
+
+        for (final horario in listaHorarios) {
+          try {
+            // Parsear horário (formato: "08:00")
+            final parts = horario.split(':');
+            if (parts.length != 2) {
+              print('DEBUG: Formato de horário inválido: $horario');
+              continue;
+            }
+
+            final hour = int.parse(parts[0]);
+            final minute = int.parse(parts[1]);
+
+            // Criar DateTime para hoje nesse horário
+            final now = DateTime.now();
+            DateTime scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
+
+            print('DEBUG: ========================================');
+            print('DEBUG: Medicamento: $nome');
+            print('DEBUG: Horário parseado: $horario (hour=$hour, minute=$minute)');
+            print('DEBUG: Agora: $now');
+            print('DEBUG: ScheduledTime criado: $scheduledTime');
+            print('DEBUG: scheduledTime.isBefore(now)? ${scheduledTime.isBefore(now)}');
+            print('DEBUG: ========================================');
+
+            // Se o horário já passou hoje, agendar para amanhã
+            if (scheduledTime.isBefore(now)) {
+              scheduledTime = scheduledTime.add(const Duration(days: 1));
+              print('DEBUG: ⚠️ Horário $horario já passou hoje, agendando para amanhã: $scheduledTime');
+            } else {
+              print('DEBUG: ✅ Horário $horario ainda não passou, agendando para hoje: $scheduledTime');
+            }
+
+            // Criar ID único para o alarme (combinação de medicationId e horário)
+            final alarmId = int.parse('$id${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}');
+            
+            // Criar payload
+            final payload = '$horario|$id|$som';
+
+            // Agendar notificação
+            await scheduleNotification(
+              id: alarmId,
+              title: 'Hora do Medicamento',
+              body: 'Toque para ver os medicamentos das $horario',
+              payload: payload,
+              scheduledTime: scheduledTime,
+              sound: som,
+            );
+
+            alarmsScheduled++;
+            print('DEBUG: Alarme agendado - Med: $nome, Horário: $horario, DateTime: $scheduledTime, ID: $alarmId');
+          } catch (e) {
+            print('DEBUG: Erro ao agendar horário $horario para medicamento $nome: $e');
+          }
+        }
+      }
+
+      print('DEBUG: Total de alarmes agendados: $alarmsScheduled');
+    } catch (e, stackTrace) {
+      print('DEBUG: Erro em scheduleAllMedicationAlarms: $e');
+      print('DEBUG: StackTrace: $stackTrace');
+    }
+  }
+
 
 
 

@@ -18,7 +18,7 @@ class DatabaseHelper {
       String path = join(await getDatabasesPath(), 'medications.db');
       final database = await openDatabase(
         path,
-        version: 3,
+        version: 4,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE medications (
@@ -32,7 +32,8 @@ class DatabaseHelper {
               startDate TEXT,
               isContinuous INTEGER,
               foto_embalagem TEXT,
-              skip_count INTEGER              
+              skip_count INTEGER,
+              tipo_alarme TEXT DEFAULT 'malta'
             )
           ''');
           await db.execute('''
@@ -70,8 +71,7 @@ class DatabaseHelper {
                 startDate TEXT,
                 isContinuous INTEGER,
                 foto_embalagem TEXT,
-                skip_count INTEGER,
-                
+                skip_count INTEGER
               )
             ''');
             await db.execute('''
@@ -90,6 +90,10 @@ class DatabaseHelper {
           if (oldVersion < 3) {
             await db.execute('ALTER TABLE users ADD COLUMN date TEXT');
             print('DEBUG: Coluna date adicionada à tabela users.');
+          }
+          if (oldVersion < 4) {
+            await db.execute('ALTER TABLE medications ADD COLUMN tipo_alarme TEXT DEFAULT "malta"');
+            print('DEBUG: Coluna tipo_alarme adicionada à tabela medications.');
           }
         },
       );

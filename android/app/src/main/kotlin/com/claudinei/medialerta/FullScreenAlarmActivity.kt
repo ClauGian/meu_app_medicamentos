@@ -35,16 +35,18 @@ class FullScreenAlarmActivity : AppCompatActivity() {
             WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
         )
 
-        // Inicia som do alarme
-        playSound()
-
+        // PEGAR DADOS DO INTENT PRIMEIRO
         val horario = intent.getStringExtra("horario") ?: "08:00"
         val medicationIds = intent.getStringArrayListExtra("medicationIds") ?: arrayListOf()
         val receivedPayload = intent.getStringExtra("payload")
         val title = intent.getStringExtra("title") ?: "Alerta de Medicação"
         val body = intent.getStringExtra("body") ?: "É hora de tomar seu medicamento."
+        val sound = intent.getStringExtra("sound") ?: "malta"
 
-        Log.d("MediAlerta", "FullScreenAlarmActivity recebida. Horário: $horario, IDs: $medicationIds")
+        Log.d("MediAlerta", "FullScreenAlarmActivity recebida. Horário: $horario, IDs: $medicationIds, Som: $sound")
+
+        // Inicia som do alarme (agora com o som correto)
+        playSound(sound)
 
         // Botão Ver
         val viewButton: Button = findViewById(R.id.view_button)
@@ -77,15 +79,27 @@ class FullScreenAlarmActivity : AppCompatActivity() {
         snoozeButton.setOnClickListener {
             Log.d("MediAlerta", "Botão 'Adiar' clicado")
             stopAndReleaseMediaPlayer()
-            adiarAlarme(horario, medicationIds, receivedPayload, title, body, 0) // segundos serão tratados abaixo
+            adiarAlarme(horario, medicationIds, receivedPayload, title, body, 0)
             finish()
         }
     }
 
-    private fun playSound() {
+    private fun playSound(soundName: String = "malta") {
         try {
             if (mediaPlayer == null) {
-                mediaPlayer = MediaPlayer.create(this, R.raw.alarm)
+                // Mapear nome do som para recurso
+                val soundResource = when (soundName) {
+                    "alarm" -> R.raw.alarm
+                    "alert" -> R.raw.alert
+                    "malta" -> R.raw.malta
+                    "simple" -> R.raw.simple
+                    "violin" -> R.raw.violin
+                    else -> R.raw.malta // Padrão
+                }
+                
+                Log.d("MediAlerta", "Iniciando MediaPlayer com som: $soundName (resource: $soundResource)")
+                
+                mediaPlayer = MediaPlayer.create(this, soundResource)
                 mediaPlayer?.setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
