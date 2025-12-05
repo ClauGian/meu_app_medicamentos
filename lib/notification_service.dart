@@ -778,81 +778,93 @@ class NotificationService {
         return;
       }
 
-      int alarmsScheduled = 0;
-
+      // AGRUPAR medicamentos por horário
+      final Map<String, List<Map<String, dynamic>>> medicationsByTime = {};
+      
       for (final med in medications) {
-        final id = med['id'] as int;
-        final nome = med['nome'] as String;
         final horarios = med['horarios'] as String?;
-        final som = (med['tipo_alarme'] as String? ?? 'malta').replaceAll('.mp3', '');
-        print('DEBUG: ===== VERIFICAÇÃO DO SOM =====');
-        print('DEBUG: Medicamento: $nome');
-        print('DEBUG: tipo_alarme do banco: ${med['tipo_alarme']}');
-        print('DEBUG: som final usado: $som');
-        print('DEBUG: ================================');
-
         if (horarios == null || horarios.isEmpty) {
-          print('DEBUG: Medicamento $nome (ID: $id) sem horários, pulando');
+          print('DEBUG: Medicamento ${med['nome']} sem horários, pulando');
           continue;
         }
 
-        // Parsear horários separados por vírgula
         final listaHorarios = horarios.split(',').map((h) => h.trim()).toList();
-        print('DEBUG: Medicamento $nome - Horários: $listaHorarios');
-
+        
         for (final horario in listaHorarios) {
-          try {
-            // Parsear horário (formato: "08:00")
-            final parts = horario.split(':');
-            if (parts.length != 2) {
-              print('DEBUG: Formato de horário inválido: $horario');
-              continue;
-            }
-
-            final hour = int.parse(parts[0]);
-            final minute = int.parse(parts[1]);
-
-            // Criar DateTime para hoje nesse horário
-            final now = DateTime.now();
-            DateTime scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
-
-            print('DEBUG: ========================================');
-            print('DEBUG: Medicamento: $nome');
-            print('DEBUG: Horário parseado: $horario (hour=$hour, minute=$minute)');
-            print('DEBUG: Agora: $now');
-            print('DEBUG: ScheduledTime criado: $scheduledTime');
-            print('DEBUG: scheduledTime.isBefore(now)? ${scheduledTime.isBefore(now)}');
-            print('DEBUG: ========================================');
-
-            // Se o horário já passou hoje, agendar para amanhã
-            if (scheduledTime.isBefore(now)) {
-              scheduledTime = scheduledTime.add(const Duration(days: 1));
-              print('DEBUG: ⚠️ Horário $horario já passou hoje, agendando para amanhã: $scheduledTime');
-            } else {
-              print('DEBUG: ✅ Horário $horario ainda não passou, agendando para hoje: $scheduledTime');
-            }
-
-            // Criar ID único para o alarme (combinação de medicationId e horário)
-            final alarmId = int.parse('$id${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}');
-            
-            // Criar payload
-            final payload = '$horario|$id|$som';
-
-            // Agendar notificação
-            await scheduleNotification(
-              id: alarmId,
-              title: 'Hora do Medicamento',
-              body: 'Toque para ver os medicamentos das $horario',
-              payload: payload,
-              scheduledTime: scheduledTime,
-              sound: som,
-            );
-
-            alarmsScheduled++;
-            print('DEBUG: Alarme agendado - Med: $nome, Horário: $horario, DateTime: $scheduledTime, ID: $alarmId');
-          } catch (e) {
-            print('DEBUG: Erro ao agendar horário $horario para medicamento $nome: $e');
+          if (!medicationsByTime.containsKey(horario)) {
+            medicationsByTime[horario] = [];
           }
+          medicationsByTime[horario]!.add(med);
+        }
+      }
+
+      print('DEBUG: Horários únicos encontrados: ${medicationsByTime.keys.toList()}');
+
+      int alarmsScheduled = 0;
+
+      // Agendar UM alarme por horário (com múltiplos medicamentos)
+      for (final entry in medicationsByTime.entries) {
+        final horario = entry.key;
+        final meds = entry.value;
+
+        try {
+          // Parsear horário (formato: "08:00")
+          final parts = horario.split(':');
+          if (parts.length != 2) {
+            print('DEBUG: Formato de horário inválido: $horario');
+            continue;
+          }
+
+          final hour = int.parse(parts[0]);
+          final minute = int.parse(parts[1]);
+
+          // Criar DateTime para hoje nesse horário
+          final now = DateTime.now();
+          DateTime scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
+
+          // Se o horário já passou hoje, agendar para amanhã
+          if (scheduledTime.isBefore(now)) {
+            scheduledTime = scheduledTime.add(const Duration(days: 1));
+            print('DEBUG: ⚠️ Horário $horario já passou hoje, agendando para amanhã: $scheduledTime');
+          } else {
+            print('DEBUG: ✅ Horário $horario ainda não passou, agendando para hoje: $scheduledTime');
+          }
+
+          // Coletar IDs dos medicamentos neste horário
+          final medicationIds = meds.map((m) => m['id'].toString()).toList();
+          
+          // Pegar o som do primeiro medicamento (ou usar padrão)
+          final som = (meds.first['tipo_alarme'] as String? ?? 'malta').replaceAll('.mp3', '');
+          
+          // Criar ID único para o alarme baseado no horário
+          final alarmId = int.parse('${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}');
+          
+          // Criar payload com múltiplos IDs separados por vírgula
+          final payload = '$horario|${medicationIds.join(',')}|$som';
+
+          print('DEBUG: ===== AGENDANDO ALARME =====');
+          print('DEBUG: Horário: $horario');
+          print('DEBUG: Medicamentos: ${meds.map((m) => m['nome']).join(', ')}');
+          print('DEBUG: IDs: $medicationIds');
+          print('DEBUG: Payload: $payload');
+          print('DEBUG: Som: $som');
+          print('DEBUG: AlarmId: $alarmId');
+          print('DEBUG: ================================');
+
+          // Agendar notificação
+          await scheduleNotification(
+            id: alarmId,
+            title: 'Hora do Medicamento',
+            body: 'Toque para ver ${meds.length} medicamento${meds.length > 1 ? 's' : ''} das $horario',
+            payload: payload,
+            scheduledTime: scheduledTime,
+            sound: som,
+          );
+
+          alarmsScheduled++;
+          print('DEBUG: ✅ Alarme agendado para $horario com ${meds.length} medicamento(s)');
+        } catch (e) {
+          print('DEBUG: Erro ao agendar horário $horario: $e');
         }
       }
 

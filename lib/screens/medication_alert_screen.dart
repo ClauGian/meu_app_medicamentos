@@ -55,12 +55,16 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     _fetchMedications();
   }
 
+
   void _handleSkip(int index) {
     setState(() {
+      final updatedMedications = List<Map<String, dynamic>>.from(medications);
+      updatedMedications[index] = {}; // 🔥 Remove o item visualmente
+      medications = updatedMedications;
+
       isSkipped[index] = true;
     });
   }
-
 
 
   static Future<List<Map<String, dynamic>>> _fetchMedicationsInIsolate(FetchMedicationsParams params) async {
@@ -161,9 +165,34 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     print('DEBUG: Medicamentos restantes: ${medications.length}');
     if (allProcessed && mounted) {
       print('DEBUG: Todos os medicamentos processados, fechando MedicationAlertScreen');
-      Navigator.pop(context);
+      
+      // Limpar initialRouteData no Android ANTES de navegar
+      _clearInitialRouteData();
+      
+      // Usar addPostFrameCallback para navegação segura
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          // Navegar direto para Home (não WelcomeScreen!)
+          Navigator.of(context).pushNamedAndRemoveUntil(
+            '/home',
+            (route) => false,
+          );
+        }
+      });
     }
   }
+
+
+  Future<void> _clearInitialRouteData() async {
+    try {
+      const platform = MethodChannel('com.claudinei.medialerta/navigation');
+      await platform.invokeMethod('clearInitialRouteData');
+      print('DEBUG: initialRouteData limpo no Android');
+    } catch (e) {
+      print('DEBUG: Erro ao limpar initialRouteData: $e');
+    }
+  }
+
 
   Future<void> _handleTake(int index) async {
     final medication = Map<String, dynamic>.from(medications[index]);
@@ -192,45 +221,16 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
     }
 
     setState(() {
-      medications[index] = <String, dynamic>{};
+      // CORREÇÃO: Criar uma CÓPIA mutável da lista antes de modificar
+      final updatedMedications = List<Map<String, dynamic>>.from(medications);
+      updatedMedications[index] = <String, dynamic>{};
+      medications = updatedMedications;
+      
       isTaken[index] = true;
-      _checkAndCloseIfDone();
+      // _checkAndCloseIfDone() REMOVIDO - agora é chamado no botão após o dialog
     });
   }
 
-  
-
-/*  Future<void> _handleSkip(int index) async {
-    final medication = Map<String, dynamic>.from(medications[index]);
-    final skipCount = (medication['skip_count'] as int) + 1;
-    await widget.database.update(
-      'medications',
-      {'skip_count': skipCount},
-      where: 'id = ?',
-      whereArgs: [medication['id']],
-    );
-    print('DEBUG: Medicamento ${medication['nome']} pulado. Novo skip_count: $skipCount');
-
-    final cuidadorId = medication['cuidador_id'];
-    if (cuidadorId != null && cuidadorId.toString().isNotEmpty && cuidadorId.toString() != '0' && skipCount == 2) {
-      print('DEBUG: Enviando notificação ao cuidador - Usuário pulou ${medication['nome']} 2 vezes (cuidador_id: $cuidadorId)');
-      await widget.database.update(
-        'medications',
-        {'skip_count': 0},
-        where: 'id = ?',
-        whereArgs: [medication['id']],
-      );
-      print('DEBUG: skip_count resetado para 0 para o medicamento ${medication['nome']}');
-    } else {
-      print('DEBUG: Notificação ao cuidador não enviada - cuidador_id: $cuidadorId, skip_count: $skipCount');
-    }
-
-    setState(() {
-      medications[index] = <String, dynamic>{};
-      isSkipped[index] = true;
-      _checkAndCloseIfDone();
-    });
-  } */
 
   @override
   Widget build(BuildContext context) {
@@ -349,33 +349,49 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                               ),
                                               onPressed: isTaken[index] || isSkipped[index]
                                                   ? null
-                                                  : () {
+                                                  : () async {
+                                                      // Primeiro executar _handleTake
+                                                      await _handleTake(index);
+                                                      
+                                                      // Só mostrar o dialog se o widget ainda estiver montado
+                                                      if (!mounted) return;
+                                                      
+                                                      // Mostrar dialog
                                                       showDialog(
                                                         context: context,
                                                         barrierDismissible: false,
-                                                        builder: (context) => Center(
+                                                        builder: (context) => Align(
+                                                          alignment: Alignment.center,
                                                           child: Container(
                                                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                                             decoration: BoxDecoration(
-                                                              color: const Color(0xFF006994),
+                                                              color: Color(0xFF006994),
                                                               borderRadius: BorderRadius.circular(8),
                                                             ),
                                                             child: Text(
                                                               'Tomou o medicamento ${med['nome']}',
-                                                              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                                                              textAlign: TextAlign.center, // 🔥 AQUI está a correção
+                                                              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                                                             ),
                                                           ),
                                                         ),
                                                       );
-                                                      Future.delayed(const Duration(seconds: 5), () {
-                                                        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
-                                                      });
-                                                      _handleTake(index);
+                                                      
+                                                      // Aguardar 3 segundos e fechar dialog
+                                                      await Future.delayed(const Duration(seconds: 3));
+                                                      
+                                                      if (mounted && Navigator.of(context).canPop()) {
+                                                        Navigator.of(context).pop();
+                                                      }
+                                                      
+                                                      // Só DEPOIS verificar se deve fechar a tela
+                                                      if (mounted) {
+                                                        _checkAndCloseIfDone();
+                                                      }
                                                     },
                                               child: const Text("Tomar", style: TextStyle(color: Colors.white)),
                                             ),
                                           ),
-
                                           const SizedBox(height: 16),
 
                                           SizedBox(
@@ -385,17 +401,22 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                                 backgroundColor: const Color(0xFF55AA55),
                                                 padding: const EdgeInsets.symmetric(vertical: 18),
                                                 shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(30), // 🔸 bordas arredondadas
+                                                  borderRadius: BorderRadius.circular(30), 
                                                 ),
                                                 textStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                                               ),
                                               onPressed: isTaken[index] || isSkipped[index]
                                                   ? null
                                                   : () {
+                                                      // 1️⃣ Primeiro executa o skip (como no botão TOMAR)
+                                                      _handleSkip(index);
+
+                                                      // 2️⃣ Mostra o diálogo
                                                       showDialog(
                                                         context: context,
                                                         barrierDismissible: false,
-                                                        builder: (context) => Center(
+                                                        builder: (context) => Align(
+                                                          alignment: Alignment.center,
                                                           child: Container(
                                                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                                                             decoration: BoxDecoration(
@@ -404,20 +425,35 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
                                                             ),
                                                             child: Text(
                                                               'Medicamento ${med['nome']} pulado',
-                                                              style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                                                              textAlign: TextAlign.center,
+                                                              style: const TextStyle(
+                                                                color: Colors.white, 
+                                                                fontSize: 20, 
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
                                                             ),
                                                           ),
                                                         ),
                                                       );
-                                                      Future.delayed(const Duration(seconds: 5), () {
-                                                        if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+
+                                                      // 3️⃣ Aguarda os 3 segundos
+                                                      Future.delayed(const Duration(seconds: 3), () {
+                                                        if (Navigator.of(context).canPop()) {
+                                                          Navigator.of(context).pop();
+                                                        }
+
+                                                        // 4️⃣ Agora fecha a tela corretamente
+                                                        if (mounted) {
+                                                          _checkAndCloseIfDone();
+                                                        }
                                                       });
-                                                      _handleSkip(index); // ✅ Agora definido
                                                     },
-                                              child: const Text("Pular", style: TextStyle(color: Colors.white)),
+                                              child: const Text(
+                                                "Pular",
+                                                style: TextStyle(color: Colors.white),
+                                              ),
                                             ),
                                           ),
-
                                         ],
                                       ),
                                     ],

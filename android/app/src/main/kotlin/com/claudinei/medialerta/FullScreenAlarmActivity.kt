@@ -11,6 +11,13 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import android.app.AlertDialog
+import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
+import android.widget.TextView
+
 
 class FullScreenAlarmActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
@@ -78,9 +85,37 @@ class FullScreenAlarmActivity : AppCompatActivity() {
         val snoozeButton: Button = findViewById(R.id.snooze_button)
         snoozeButton.setOnClickListener {
             Log.d("MediAlerta", "Botão 'Adiar' clicado")
+
+            // 1) Para o som
             stopAndReleaseMediaPlayer()
-            adiarAlarme(horario, medicationIds, receivedPayload, title, body, 0)
-            finish()
+
+            // 2) Reagendar para 15 minutos (900 segundos)
+            val delaySeconds = 15 * 60
+            adiarAlarme(horario, medicationIds, receivedPayload, title, body, delaySeconds)
+
+            // 3) Mostrar mensagem no mesmo estilo (fundo azul, texto branco, centralizado)
+            val messageView = TextView(this).apply {
+                text = "Medicamento(s) adiado(s) por 15 minutos"
+                setTextColor(Color.WHITE)
+                textSize = 20f
+                setPadding(48, 24, 48, 24)
+                gravity = Gravity.CENTER
+                // mesmo tom azul que você usa no Flutter (#006994)
+                setBackgroundColor(Color.parseColor("#006994"))
+            }
+
+            val dialog = AlertDialog.Builder(this)
+                .setView(messageView)
+                .setCancelable(false)
+                .create()
+
+            dialog.show()
+
+            // 4) Aguardar 3 segundos, fechar diálogo e encerrar a Activity
+            Handler(Looper.getMainLooper()).postDelayed({
+                dialog.dismiss()
+                finish()
+            }, 3000)
         }
     }
 

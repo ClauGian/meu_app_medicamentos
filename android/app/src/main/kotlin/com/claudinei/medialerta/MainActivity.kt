@@ -83,6 +83,19 @@ class MainActivity : FlutterActivity() {
                         ))
                     }
                 }
+                "clearInitialRouteData" -> {
+                    Log.d("MediAlerta", "clearInitialRouteData chamado")
+                    initialRouteData = mapOf(
+                        "route" to null,
+                        "horario" to null,
+                        "medicationIds" to arrayListOf<String>(),
+                        "payload" to null,
+                        "notificationId" to -1
+                    )
+                    isInitialIntentProcessed = true
+                    Log.d("MediAlerta", "initialRouteData limpo")
+                    result.success(true)
+                }
                 "openMedicationAlert" -> {
                     val args = call.arguments as? Map<String, Any>
                     initialRouteData = mapOf(
@@ -177,18 +190,19 @@ class MainActivity : FlutterActivity() {
                     val payload = args?.get("payload") as? String ?: ""
                     val scheduledTimeMillis = (args?.get("scheduledTime") as? Number)?.toLong() ?: 0L
 
-                    // Extrair horario, medicationId e sound do payload (formato: "14:47|1|malta")
+                    // Extrair horario, medicationIds e sound do payload (formato: "14:47|1,2,3|malta")
                     val payloadParts = payload.split("|")
                     val horario = if (payloadParts.isNotEmpty()) payloadParts[0] else "08:00"
-                    val medicationId = if (payloadParts.size > 1) payloadParts[1] else ""
+                    val medicationIdsStr = if (payloadParts.size > 1) payloadParts[1] else ""
                     val sound = if (payloadParts.size > 2) payloadParts[2] else "malta"
-                    val medicationIds = if (medicationId.isNotEmpty()) {
-                        arrayListOf(medicationId)
+                    val medicationIds = if (medicationIdsStr.isNotEmpty()) {
+                        // Separar IDs por vírgula (ex: "1,2,3" -> ["1", "2", "3"])
+                        ArrayList(medicationIdsStr.split(",").map { it.trim() })
                     } else {
                         arrayListOf<String>()
                     }
 
-                    Log.d("MediAlerta", "Payload parseado - horario: $horario, medicationId: $medicationId, sound: $sound")
+                    Log.d("MediAlerta", "Payload parseado - horario: $horario, medicationIds: $medicationIds, sound: $sound")
                     Log.d("MediAlerta", "✅ Alarme agendado - Horario: $horario, MedID: $medicationIds, Som: $sound, Para: ${java.util.Date(scheduledTimeMillis)}")
 
                     val alarmIntent = Intent(this, AlarmReceiver::class.java).apply {
@@ -254,14 +268,16 @@ class MainActivity : FlutterActivity() {
 
     override fun onStop() {
         Log.d("MediAlerta", "MainActivity.onStop chamado, initialRouteData=$initialRouteData")
-        // NÃO chamar super.onStop() se temos dados de medication_alert
-        // Isso previne que o Android destrua a Activity
+        
+        // Sempre chamar super.onStop() - é obrigatório no Android
         if (initialRouteData["route"] != "medication_alert") {
             Log.d("MediAlerta", "onStop: Chamando super.onStop() (route=${initialRouteData["route"]})")
-            super.onStop()
         } else {
-            Log.d("MediAlerta", "onStop: Bloqueado para prevenir destruição (temos dados de medication_alert)")
+            Log.d("MediAlerta", "onStop: Mantendo dados de medication_alert preservados")
+            // NÃO limpar initialRouteData aqui - manter os dados para uso posterior
         }
+        
+        super.onStop()
     }
 
 

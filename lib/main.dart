@@ -6,6 +6,7 @@ import 'screens/welcome_screen.dart';
 import 'screens/medication_alert_screen.dart';
 import 'notification_service.dart';
 import 'database_helper.dart';
+import 'screens/home_screen.dart';
 
 
 void main() async {
@@ -276,6 +277,7 @@ class _MyAppState extends State<MyApp> {
       onGenerateRoute: (settings) {
         print('DEBUG: Gerando rota para: ${settings.name}, argumentos: ${settings.arguments}');
 
+        // Rota para MedicationAlertScreen
         if (settings.name == '/medication_alert' && widget.initialRouteData != null) {
           final routeData = widget.initialRouteData!;
           if (routeData['route'] == 'medication_alert') {
@@ -304,11 +306,26 @@ class _MyAppState extends State<MyApp> {
           }
         }
 
-        // Evitar renderizar WelcomeScreen imediatamente, retornando um placeholder temporário
-        print('DEBUG: Rota não é /medication_alert ou initialRouteData nulo, retornando placeholder');
+        // Rota para Home
+        if (settings.name == '/home') {
+          print('DEBUG: Retornando HomeScreen (Home)');
+          return MaterialPageRoute(
+            builder: (context) => HomeScreen(
+              database: widget.database,
+              notificationService: widget.notificationService,
+            ),
+            settings: settings,
+          );
+        }
+
+        // Para todas as outras rotas (incluindo /welcome), retorna WelcomeScreen
+        print('DEBUG: Retornando WelcomeScreen');
         return MaterialPageRoute(
-          builder: (context) => const SizedBox.shrink(), // Placeholder vazio até a navegação ser processada
-          settings: const RouteSettings(name: '/placeholder'),
+          builder: (context) => WelcomeScreen(
+            database: widget.database,
+            notificationService: widget.notificationService,
+          ),
+          settings: const RouteSettings(name: '/welcome'),
         );
       },
     );
