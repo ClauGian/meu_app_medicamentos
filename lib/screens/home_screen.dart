@@ -35,15 +35,24 @@ class _HomeScreenState extends State<HomeScreen> {
         leading: Builder(
           builder: (context) => Padding(
             padding: const EdgeInsets.only(top: 20.0, left: 16.0),
-            child: IconButton(
-              icon: const Icon(Icons.menu, size: 60),
-              color: const Color.fromRGBO(0, 0, 0, 1),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-              padding: const EdgeInsets.all(16),
-              constraints: const BoxConstraints(minWidth: 80, minHeight: 80),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color.fromRGBO(0, 105, 148, 1), // azul do app
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.menu, size: 40, color: Colors.white),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+                padding: EdgeInsets.zero, // remove o padding interno
+                constraints: const BoxConstraints( // define tamanho exato do círculo
+                  minWidth: 60,
+                  minHeight: 60,
+                ),
+              ),
             ),
           ),
         ),
+
         title: Padding(
           // deixamos apenas um pequeno left aqui porque já controlamos leadingWidth
           padding: const EdgeInsets.only(top: 22.0, left: 8.0),
@@ -99,29 +108,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.only(top: 10.0, bottom: 12.0),
-                  child: Center(
-                    child: RichText(
-                      text: const TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Medi',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Alerta',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white, size: 32),
+                        onPressed: () {
+                          Navigator.pop(context); // Volta à Home
+                        },
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'MediAlerta',
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -171,9 +176,21 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 70),
+              
+              const Text(
+                'Home',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue, // troque para a cor que preferir
+                ),
+              ),
+
+              const SizedBox(height: 40), // distância entre "Home" e "Bem-vindo ao"
+
               RichText(
                 textAlign: TextAlign.center,
                 text: const TextSpan(
@@ -208,43 +225,52 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 50),
+
               RichText(
                 textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: const TextStyle(
+                text: const TextSpan(
+                  style: TextStyle(
                     color: Color.fromRGBO(0, 105, 148, 1),
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
                   children: [
-                    const TextSpan(text: 'Acesse o menu acima  '),
-                    WidgetSpan(
-                      alignment: PlaceholderAlignment.middle,
-                      child: Icon(Icons.menu, size: 40, color: Colors.black),
+                    TextSpan(
+                      text:
+                          'Para aproveitar melhor todas as funções do MediAlerta, toque no botão abaixo e veja o Guia do App.',
                     ),
-                    const TextSpan(text: '  e comece a usar seu assistente para cuidar das suas medicações.'),
                   ],
                 ),
               ),
+
               const SizedBox(height: 80),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const InstructionsScreen()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                ),
-                child: const Text(
-                  'Guia do App',
-                  style: TextStyle(
-                    color: Color.fromRGBO(85, 170, 85, 1),
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
+
+              Center(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const InstructionsScreen(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromRGBO(0, 105, 148, 1),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 40,
+                      vertical: 15,
+                    ),
+                  ),
+                  child: const Text(
+                    'Guia do App',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

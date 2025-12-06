@@ -21,7 +21,7 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
-  bool _isScheduling = false;
+
 
   @override
   void initState() {
@@ -166,68 +166,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (_isScheduling) return;
-                    _isScheduling = true;
-                    try {
-                      // Cancelar todas as notificações pendentes
-                      await widget.notificationService.cancelAllNotifications();
-                      print('DEBUG: Todas as notificações pendentes canceladas');
-
-                      // SnackBar informando que iniciou o agendamento
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Notificação agendada para 10 segundos depois!'),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-
-                      final medications = await widget.database.query(
-                        'medications',
-                        where: 'horarios LIKE ?',
-                        whereArgs: ['%08:00%'],
-                      );
-                      if (medications.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Nenhum medicamento encontrado para 08:00!')),
-                        );
-                        _isScheduling = false;
-                        return;
-                      }
-
-                      final medicationIds = medications.map((m) => m['id'].toString()).toList();
-                      final payload = '08:00|${medicationIds.join(',')}';
-
-                      // Chamar canal MethodChannel para agendar FullScreen
-                      await widget.notificationService.scheduleFullScreen(
-                        horario: '08:00',
-                        medicationIds: medicationIds,
-                        payload: payload,
-                        title: 'Alerta de Medicamento',
-                        body: 'Você tem ${medicationIds.length} medicamentos para tomar',
-                        delaySeconds: 10,
-                      );
-
-                      print('DEBUG: Agendamento da FullScreen feito para 10 segundos depois');
-                    } catch (e) {
-                      print('DEBUG: Erro ao agendar FullScreen: $e');
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Erro ao agendar FullScreen: $e')),
-                      );
-                    } finally {
-                      _isScheduling = false;
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromRGBO(85, 170, 85, 1),
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  ),
-                  child: const Text(
-                    "Testar FullScreen",
-                    style: TextStyle(fontSize: 24, color: Colors.white),
-                  ),
-                ),
               ],
             ),
           ),
