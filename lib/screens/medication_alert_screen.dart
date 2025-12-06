@@ -215,8 +215,8 @@ class MedicationAlertScreenState extends State<MedicationAlertScreen> {
         id: 999,
         title: 'Estoque Baixo',
         body: 'Restam poucos comprimidos de ${medication['nome']}. Reabasteça!',
-        sound: 'alarm',
-        payload: '',
+        sound: 'violin',
+        payload: 'estoque_baixo',
       );
     }
 

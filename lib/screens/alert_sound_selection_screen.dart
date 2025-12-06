@@ -42,7 +42,7 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
       if (selectedSound != null) {
         await audioPlayer.stop();
         try {
-          await audioPlayer.setAsset('sounds/$selectedSound');
+          await audioPlayer.setAsset('assets/sounds/$selectedSound.mp3');
           await audioPlayer.setLoopMode(LoopMode.off);
           await audioPlayer.setVolume(1.0);
           await audioPlayer.play();

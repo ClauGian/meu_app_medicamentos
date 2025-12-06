@@ -6,11 +6,11 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/services.dart';
-import 'screens/medication_alert_screen.dart';
 import 'package:just_audio/just_audio.dart'; // Mantém apenas just_audio
 // ignore: unused_import
 import 'package:flutter_isolate/flutter_isolate.dart';
 import 'package:path/path.dart';
+import 'screens/medication_list_screen.dart';
 
 
 final _processedNotificationIds = <int>{};
@@ -317,6 +317,28 @@ class NotificationService {
     _processedNotificationIds.add(response.id!);
 
     try {
+      // 🔹 Tratamento especial para notificação de estoque baixo
+      if (response.payload == 'estoque_baixo' || response.actionId == 'view_medications') {
+        await _notificationService._notificationsPlugin.cancel(response.id!);
+        print('DEBUG: Notificação ID ${response.id} cancelada (estoque_baixo)');
+
+        final navigator = NotificationService.navigatorKey.currentState;
+        if (navigator != null && navigator.mounted) {
+          navigator.pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => MedicationListScreen(
+                database: _notificationService._database!,
+                notificationService: _notificationService,
+              ),
+            ),
+          );
+          print('DEBUG: Navegação para MedicationListScreen concluída');
+        } else {
+          print('DEBUG: Navigator não disponível para navegação');
+        }
+        return;
+      }
+
       final payloadParts = response.payload!.split('|');
       if (payloadParts.length < 2) {
         print('DEBUG: Payload inválido: ${response.payload}');
@@ -325,56 +347,30 @@ class NotificationService {
 
       final horario = payloadParts[0];
       final medicationIds = payloadParts[1].split(',').where((id) => id.isNotEmpty).toList();
-      final sound = payloadParts.length >= 3 ? payloadParts[2] : 'malta'; // 🔹 Garantir som padrão
+      final sound = payloadParts.length >= 3 ? payloadParts[2] : 'malta';
       print('DEBUG: Payload processado - Horário: $horario, MedicationIds: $medicationIds, Sound: $sound');
 
-      // 🔹 Ação "Ver" → abrir MedicationAlertScreen
-      if (response.actionId == 'view_action') {
+      // 🔹 Ação "Ver" (alarmes normais) → abrir MedicationAlertScreen  
+      if (response.actionId == 'view_medications') {
         await _notificationService._notificationsPlugin.cancel(response.id!);
-        print('DEBUG: Notificação ID ${response.id} cancelada (view_action)');
+        print('DEBUG: Notificação ID ${response.id} cancelada (view_medications)');
 
         final navigator = NotificationService.navigatorKey.currentState;
         if (navigator != null && navigator.mounted) {
           navigator.pushReplacement(
             MaterialPageRoute(
-              builder: (context) => MedicationAlertScreen(
-                horario: horario,
-                medicationIds: medicationIds,
+              builder: (context) => MedicationListScreen(
                 database: _notificationService._database!,
                 notificationService: _notificationService,
-                rootIsolateToken: RootIsolateToken.instance!,
               ),
             ),
           );
-          print('DEBUG: Navegação para MedicationAlertScreen concluída');
+          print('DEBUG: Navegação para MedicationListScreen concluída');
         } else {
-          print('DEBUG: Navigator não disponível, usando MethodChannel para navegação');
-          await NotificationService._navigationChannel.invokeMethod('openMedicationAlert', {
-            'route': 'medication_alert',
-            'horario': horario,
-            'medicationIds': medicationIds,
-            'payload': response.payload,
-            'notificationId': response.id,
-          });
+          print('DEBUG: Navigator não disponível para navegação');
         }
       }
-      // 🔹 Ação "Adiar" → reagendar alarme para 15 minutos
-      else if (response.actionId == 'snooze_action') {
-        await _notificationService._notificationsPlugin.cancel(response.id!);
-        print('DEBUG: Notificação ID ${response.id} cancelada (snooze_action)');
 
-        final newScheduledTime = DateTime.now().add(const Duration(minutes: 15)); // 🔹 Alterado para 15 minutos
-        final newPayload = '$horario|${medicationIds.join(',')}|$sound';
-        await _notificationService.scheduleNotification(
-          id: response.id! + 1000000,
-          title: 'Hora do Medicamento',
-          body: 'Toque para ver os medicamentos',
-          payload: newPayload,
-          scheduledTime: newScheduledTime,
-          sound: sound,
-        );
-        print('DEBUG: Notificação reagendada para 15 minutos depois: $newScheduledTime, Payload: $newPayload');
-      }
       // 🔹 Clique genérico → cancelar notificação, sem navegação
       else {
         await _notificationService._notificationsPlugin.cancel(response.id!);
@@ -482,16 +478,21 @@ class NotificationService {
       enableVibration: true,
       category: AndroidNotificationCategory.alarm,
       fullScreenIntent: true,
+      color: Color(0xFF006994),
+      colorized: true,
+      largeIcon: DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: '⚕️ MediAlerta',
+        htmlFormatBigText: true,
+        htmlFormatContentTitle: true,
+      ),
       actions: [
         AndroidNotificationAction(
-          'view_action',
+          'view_medications',
           'Ver',
           showsUserInterface: true,
-        ),
-        AndroidNotificationAction(
-          'snooze_action',
-          'Adiar',
-          showsUserInterface: false,
         ),
       ],
     );
