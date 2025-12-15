@@ -42,10 +42,15 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
       if (selectedSound != null) {
         await audioPlayer.stop();
         try {
+          print('DEBUG: Tentando tocar: assets/sounds/$selectedSound.mp3');
           await audioPlayer.setAsset('assets/sounds/$selectedSound.mp3');
+          print('DEBUG: Asset carregado com sucesso');
           await audioPlayer.setLoopMode(LoopMode.off);
+          print('DEBUG: LoopMode configurado');
           await audioPlayer.setVolume(1.0);
+          print('DEBUG: Volume configurado');
           await audioPlayer.play();
+          print('DEBUG: Play executado');
           setState(() {
             _isPlaying = true;
           });
@@ -59,6 +64,7 @@ class _AlertSoundSelectionScreenState extends State<AlertSoundSelectionScreen> {
             }
           });
         } catch (e) {
+          print('DEBUG: Erro detalhado: $e');
           print('Erro ao reproduzir áudio: $e');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Erro ao reproduzir o som.')),

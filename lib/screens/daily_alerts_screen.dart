@@ -19,13 +19,22 @@ class DailyAlertsScreen extends StatefulWidget {
 }
 
 class DailyAlertsScreenState extends State<DailyAlertsScreen> {
+
+
   Future<Map<String, List<Map<String, dynamic>>>> _getGroupedDailyAlerts() async {
     final startTime = DateTime.now();
     try {
+      // 🔹 DELETAR medicamentos não-contínuos com estoque zerado
+      await widget.database.delete(
+        'medications',
+        where: 'isContinuous = ? AND quantidade = ?',
+        whereArgs: [0, 0],
+      );
+      
       final medications = await widget.database.query(
         'medications',
-        where: 'horarios IS NOT NULL AND horarios != ? AND (isContinuous = ? OR startDate <= ?)',
-        whereArgs: ['', 1, DateTime.now().toIso8601String()],
+        where: 'horarios IS NOT NULL AND horarios != ? AND (isContinuous = ? OR quantidade > ?)',
+        whereArgs: ['', 1, 0],
       );
       print('DEBUG: Medicamentos buscados: $medications');
 
@@ -36,10 +45,11 @@ class DailyAlertsScreenState extends State<DailyAlertsScreen> {
         if (horariosStr.trim().isEmpty) continue;
 
         final horarios = horariosStr.split(',').map((h) => h.trim()).toList();
-        final startDate = DateTime.parse(med['startDate'] as String);
         final isContinuous = (med['isContinuous'] as int?) == 1;
+        final quantidade = (med['quantidade'] as int?) ?? 0;
 
-        if (isContinuous || startDate.isBefore(DateTime.now())) {
+        // Só mostrar se for contínuo OU tiver estoque
+        if (isContinuous || quantidade > 0) {
           for (var horario in horarios) {
             grouped.putIfAbsent(horario, () => []).add(med);
           }

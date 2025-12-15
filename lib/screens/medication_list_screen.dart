@@ -29,13 +29,20 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
     _loadMedications();
   }
 
+
+
   Future<void> _loadMedications() async {
-    final List<Map<String, dynamic>> medications = await widget.database.query('medications');
-    print('DEBUG: Medicamentos carregados em MedicationListScreen: $medications'); // Adicionado log
+    final List<Map<String, dynamic>> medications = await widget.database.query(
+      'medications',
+      where: 'isContinuous = ? OR quantidade > ?',
+      whereArgs: [1, 0],
+    );
+    print('DEBUG: Medicamentos carregados em MedicationListScreen: $medications');
     setState(() {
       _medications = medications;
     });
   }
+
 
   void _confirmDelete(BuildContext context, int id, String name) {
     showDialog(

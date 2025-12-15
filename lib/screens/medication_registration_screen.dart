@@ -282,6 +282,22 @@ class _MedicationRegistrationScreenState extends State<MedicationRegistrationScr
     final database = widget.database;
     print("Database em _checkDuplicateMedicationOnNameFieldExit: $database");
 
+    // 🔹 DELETAR medicamentos não-contínuos com estoque zerado
+    await database.delete(
+      'medications',
+      where: 'isContinuous = ? AND quantidade = ?',
+      whereArgs: [0, 0],
+    );
+    print("Medicamentos não-contínuos com estoque zerado foram deletados");
+
+    // 🔹 DELETAR medicamentos não-contínuos com estoque zerado
+    await database.delete(
+      'medications',
+      where: 'isContinuous = ? AND quantidade = ?',
+      whereArgs: [0, 0],
+    );
+    print("Medicamentos não-contínuos com estoque zerado foram deletados");
+
     final List<Map<String, dynamic>> existingMedications = await database.query('medications');
     final newNameNormalized = _normalizeName(_nameController.text);
 
@@ -1180,7 +1196,7 @@ class TypeDropdownState extends State<TypeDropdown> {
   @override
   Widget build(BuildContext context) {
     print("Build: TypeDropdown reconstruído");
-    const List<String> medicationTypes = ["Comprimidos", "Cápsulas", "Gotas", "Xarope", "Injeção"];
+    const List<String> medicationTypes = ["Comprimidos", "Gotas", "Xarope", "Pomada / Creme", "Injeção"];
 
     return Column(
       key: widget.keyTag,

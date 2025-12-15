@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
-import 'package:firebase_core/firebase_core.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/medication_alert_screen.dart';
 import 'notification_service.dart';
@@ -46,10 +45,7 @@ void main() async {
   }
 
   try {
-    await Firebase.initializeApp();
-    print('DEBUG: Firebase inicializado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
-
-  // NÃO buscar dados aqui, deixar o Android fornecer
+    // NÃO buscar dados aqui, deixar o Android fornecer
     print('DEBUG: Pulando getInitialRouteData no main()');
 
 

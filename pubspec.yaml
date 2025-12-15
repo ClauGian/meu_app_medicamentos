@@ -10,8 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^3.13.0  
-  cloud_firestore: ^5.6.7
   image_picker: ^1.0.7
   intl: ^0.19.0
   sqflite: ^2.3.3
@@ -23,12 +21,9 @@ dependencies:
   timezone: ^0.10.0
   path_provider: ^2.1.5
   shared_preferences: ^2.2.3  
-  sqflite_common_ffi: ^2.3.3
   android_alarm_manager_plus: ^4.0.8  
-  app_settings_plus: ^5.2.0+2
   just_audio: ^0.10.4
   flutter_isolate: ^2.0.4
-  
   
 dev_dependencies:
   flutter_test:
@@ -46,6 +41,7 @@ flutter:
   assets:
     - assets/imagem_senhora.png
     - assets/icone_ma.png   
+    - assets/qr_pix.png
     - assets/sounds/alarm.mp3
     - assets/sounds/alert.mp3
     - assets/sounds/malta.mp3

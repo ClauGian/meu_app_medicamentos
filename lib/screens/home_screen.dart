@@ -6,6 +6,8 @@ import 'medication_registration_screen.dart';
 import 'instructions_screen.dart';
 import 'daily_alerts_screen.dart';
 import 'alert_sound_selection_screen.dart';
+import 'apoio_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   final Database database;
@@ -165,6 +167,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ));
                   }),
+                  _buildMenuCard(Icons.favorite, 'Apoiar o MediAlerta', () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ApoioScreen(),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -253,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const InstructionsScreen(),
+                        builder: (context) => InstructionsScreen(),
                       ),
                     );
                   },

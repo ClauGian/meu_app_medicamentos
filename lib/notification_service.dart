@@ -11,6 +11,7 @@ import 'package:just_audio/just_audio.dart'; // Mantém apenas just_audio
 import 'package:flutter_isolate/flutter_isolate.dart';
 import 'package:path/path.dart';
 import 'screens/medication_list_screen.dart';
+import 'dart:async';
 
 
 final _processedNotificationIds = <int>{};
@@ -169,6 +170,16 @@ class NotificationService {
       if (!alarmManagerInitialized) {
         throw Exception('Falha ao inicializar AndroidAlarmManager');
       }
+
+      // 🔹 REAGENDAR TODOS OS ALARMES AO INICIAR O APP
+      print('DEBUG: Reagendando todos os alarmes ao iniciar app...');
+      await scheduleAllMedicationAlarms();
+      print('DEBUG: Reagendamento concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
+      // 🔹 INICIAR REAGENDAMENTO PERIÓDICO
+      startPeriodicRescheduling();
+      print('DEBUG: Reagendamento periódico iniciado - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
+
     } catch (e, stackTrace) {
       print('DEBUG: Erro durante inicialização do NotificationService: $e');
       print('DEBUG: StackTrace: $stackTrace');
@@ -177,6 +188,20 @@ class NotificationService {
     print('DEBUG: NotificationService.init concluído - Elapsed: ${DateTime.now().millisecondsSinceEpoch - startTime}ms');
   }
 
+
+
+  // 🔹 Reagendar alarmes periodicamente (a cada 4 horas)
+  void startPeriodicRescheduling() {
+    Timer.periodic(const Duration(hours: 4), (timer) async {
+      print('DEBUG: ⏰ Reagendamento periódico executado às ${DateTime.now()}');
+      try {
+        await scheduleAllMedicationAlarms();
+        print('DEBUG: ✅ Reagendamento periódico concluído com sucesso');
+      } catch (e) {
+        print('DEBUG: ❌ Erro no reagendamento periódico: $e');
+      }
+    });
+  }
 
 
   Future<void> requestBatteryOptimizationsExemption() async {
