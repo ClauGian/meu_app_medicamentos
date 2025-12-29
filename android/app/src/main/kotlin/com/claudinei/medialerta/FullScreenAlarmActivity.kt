@@ -23,6 +23,9 @@ class FullScreenAlarmActivity : AppCompatActivity() {
     private var mediaPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // ATENÇÃO: Esta linha deve ser a PRIMEIRA coisa executada
+        MyApplication.isAlarmMode = true
+
         super.onCreate(savedInstanceState)
         Log.d("MediAlerta", "onCreate de FullScreenAlarmActivity iniciado")
         setContentView(R.layout.activity_full_screen_alarm)
@@ -203,4 +206,10 @@ class FullScreenAlarmActivity : AppCompatActivity() {
         Log.d("MediAlerta", "onDestroy chamado")
         stopAndReleaseMediaPlayer()
     }
+
+    override fun finish() {
+        MyApplication.isAlarmMode = false
+        super.finish()
+    }
+
 }
