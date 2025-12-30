@@ -782,6 +782,7 @@ class NotificationService {
   }
 
 
+
   Future<void> scheduleAllMedicationAlarms() async {
     print('DEBUG: Iniciando scheduleAllMedicationAlarms');
     try {
@@ -789,6 +790,9 @@ class NotificationService {
         print('DEBUG: ERRO: Database não inicializado');
         return;
       }
+
+      // DECLARAÇÃO MOVIDA PARA CÁ (corrige o erro)
+      final DateTime now = DateTime.now();
 
       // Buscar medicamentos ativos (quantidade > 0)
       final medications = await _database!.query(
@@ -799,14 +803,10 @@ class NotificationService {
 
       print('DEBUG: Medicamentos ativos encontrados: ${medications.length}');
 
-      if (medications.isEmpty) {
-        print('DEBUG: Nenhum medicamento ativo para agendar');
-        return;
-      }
-
       // AGRUPAR medicamentos por horário
       final Map<String, List<Map<String, dynamic>>> medicationsByTime = {};
-      
+      final Set<int> activeAlarmIds = {}; // IDs que serão usados agora
+
       for (final med in medications) {
         final horarios = med['horarios'] as String?;
         if (horarios == null || horarios.isEmpty) {
@@ -821,20 +821,44 @@ class NotificationService {
             medicationsByTime[horario] = [];
           }
           medicationsByTime[horario]!.add(med);
+
+          // Calcular e guardar o ID do alarme ativo
+          final parts = horario.split(':');
+          if (parts.length == 2) {
+            final hour = int.parse(parts[0]);
+            final minute = int.parse(parts[1]);
+            final alarmId = int.parse('${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}');
+            activeAlarmIds.add(alarmId);
+          }
         }
       }
 
       print('DEBUG: Horários únicos encontrados: ${medicationsByTime.keys.toList()}');
 
+      // PASSO 1: Cancelar todos os alarmes órfãos
+      for (int hour = 0; hour < 24; hour++) {
+        for (int minute = 0; minute < 60; minute++) {
+          final alarmId = int.parse('${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}');
+          if (!activeAlarmIds.contains(alarmId)) {
+            await cancelNotification(alarmId);
+            print('DEBUG: ❌ Alarme órfão cancelado: ID $alarmId (${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')})');
+          }
+        }
+      }
+
+      if (medicationsByTime.isEmpty) {
+        print('DEBUG: Nenhum medicamento ativo para agendar');
+        return;
+      }
+
       int alarmsScheduled = 0;
 
-      // Agendar UM alarme por horário (com múltiplos medicamentos)
+      // PASSO 2: Agendar os alarmes ativos
       for (final entry in medicationsByTime.entries) {
         final horario = entry.key;
         final meds = entry.value;
 
         try {
-          // Parsear horário (formato: "08:00")
           final parts = horario.split(':');
           if (parts.length != 2) {
             print('DEBUG: Formato de horário inválido: $horario');
@@ -844,11 +868,8 @@ class NotificationService {
           final hour = int.parse(parts[0]);
           final minute = int.parse(parts[1]);
 
-          // Criar DateTime para hoje nesse horário
-          final now = DateTime.now();
           DateTime scheduledTime = DateTime(now.year, now.month, now.day, hour, minute);
 
-          // Se o horário já passou hoje, agendar para amanhã
           if (scheduledTime.isBefore(now)) {
             scheduledTime = scheduledTime.add(const Duration(days: 1));
             print('DEBUG: ⚠️ Horário $horario já passou hoje, agendando para amanhã: $scheduledTime');
@@ -856,16 +877,9 @@ class NotificationService {
             print('DEBUG: ✅ Horário $horario ainda não passou, agendando para hoje: $scheduledTime');
           }
 
-          // Coletar IDs dos medicamentos neste horário
           final medicationIds = meds.map((m) => m['id'].toString()).toList();
-          
-          // Pegar o som do primeiro medicamento (ou usar padrão)
           final som = (meds.first['tipo_alarme'] as String? ?? 'malta').replaceAll('.mp3', '');
-          
-          // Criar ID único para o alarme baseado no horário
           final alarmId = int.parse('${hour.toString().padLeft(2, '0')}${minute.toString().padLeft(2, '0')}');
-          
-          // Criar payload com múltiplos IDs separados por vírgula
           final payload = '$horario|${medicationIds.join(',')}|$som';
 
           print('DEBUG: ===== AGENDANDO ALARME =====');
@@ -877,7 +891,6 @@ class NotificationService {
           print('DEBUG: AlarmId: $alarmId');
           print('DEBUG: ================================');
 
-          // Agendar notificação
           await scheduleNotification(
             id: alarmId,
             title: 'Hora do Medicamento',
@@ -895,6 +908,7 @@ class NotificationService {
       }
 
       print('DEBUG: Total de alarmes agendados: $alarmsScheduled');
+      print('DEBUG: scheduleAllMedicationAlarms concluído');
     } catch (e, stackTrace) {
       print('DEBUG: Erro em scheduleAllMedicationAlarms: $e');
       print('DEBUG: StackTrace: $stackTrace');

@@ -44,29 +44,35 @@ class _MedicationListScreenState extends State<MedicationListScreen> {
   }
 
 
-  void _confirmDelete(BuildContext context, int id, String name) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text("Confirmar Exclusão", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-        content: Text("Deseja excluir o medicamento '$name'?", style: const TextStyle(fontSize: 20)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar", style: TextStyle(fontSize: 20, color: Color.fromRGBO(0, 105, 148, 1))),
-          ),
-          TextButton(
-            onPressed: () async {
-              await widget.database.delete('medications', where: 'id = ?', whereArgs: [id]);
-              Navigator.pop(context);
-              _loadMedications();
-            },
-            child: const Text("Excluir", style: TextStyle(fontSize: 20, color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
+void _confirmDelete(BuildContext context, int id, String name) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) => AlertDialog(
+      title: const Text("Confirmar Exclusão", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+      content: Text("Deseja excluir o medicamento '$name'?", style: const TextStyle(fontSize: 20)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("Cancelar", style: TextStyle(fontSize: 20, color: Color.fromRGBO(0, 105, 148, 1))),
+        ),
+        TextButton(
+          onPressed: () async {
+            await widget.database.delete('medications', where: 'id = ?', whereArgs: [id]);
+            
+            // CHAMADA CORRETA USANDO A INSTÂNCIA PASSADA PELO CONSTRUTOR
+            await widget.notificationService.scheduleAllMedicationAlarms();
+            
+            Navigator.pop(context);
+            _loadMedications();
+          },
+          child: const Text("Excluir", style: TextStyle(fontSize: 20, color: Colors.red)),
+        ),
+      ],
+    ),
+  );
+}
+
+
 
   void _showImageDialog(BuildContext context, String imagePath) {
     showDialog(
